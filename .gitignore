@@ -1,0 +1,42 @@
+# macOS
+.DS_Store
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# FastAPI storage/runtime
+backend/storage/
+backend/.pytest_cache/
+backend/.coverage
+
+# Node / Vite
+node_modules/
+dist/
+coverage/
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# IDE
+.idea/
+.vscode/
+
+# Git worktrees
+.worktrees/
+worktrees/
+
+# uv lock files
+uv.lock

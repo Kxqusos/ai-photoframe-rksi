@@ -1,0 +1,135 @@
+import type {
+  JobCreated,
+  JobStatus,
+  MediaUploadResponse,
+  ModelSetting,
+  PromptCreate,
+  StylePrompt
+} from "../types";
+
+const API_BASE = "";
+const FALLBACK_STYLES: StylePrompt[] = [
+  {
+    id: 1,
+    name: "Anime",
+    description: "Soft anime shading",
+    prompt: "Turn input photo into anime portrait",
+    preview_image_url: "/media/previews/anime.jpg",
+    icon_image_url: "/media/icons/anime.png"
+  }
+];
+const DEFAULT_MODEL = "openai/gpt-image-1";
+const AVAILABLE_MODELS = [
+  "openai/gpt-image-1",
+  "google/gemini-2.5-flash-image-preview",
+  "stabilityai/stable-diffusion-3.5-large"
+];
+
+export async function listPrompts(): Promise<StylePrompt[]> {
+  try {
+    const response = await fetch(`${API_BASE}/api/prompts`);
+    if (!response.ok) {
+      return FALLBACK_STYLES;
+    }
+    return (await response.json()) as StylePrompt[];
+  } catch {
+    return FALLBACK_STYLES;
+  }
+}
+
+export async function createJob(photo: File, promptId: number): Promise<JobCreated> {
+  const formData = new FormData();
+  formData.append("photo", photo);
+  formData.append("prompt_id", String(promptId));
+
+  const response = await fetch(`${API_BASE}/api/jobs`, {
+    method: "POST",
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to create generation job");
+  }
+
+  return (await response.json()) as JobCreated;
+}
+
+export async function getJobStatus(jobId: number): Promise<JobStatus> {
+  const response = await fetch(`${API_BASE}/api/jobs/${jobId}`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch generation status");
+  }
+  return (await response.json()) as JobStatus;
+}
+
+export async function listModels(): Promise<string[]> {
+  return AVAILABLE_MODELS;
+}
+
+export async function getModel(): Promise<ModelSetting> {
+  try {
+    const response = await fetch(`${API_BASE}/api/settings/model`);
+    if (!response.ok) {
+      return { id: 1, model_name: DEFAULT_MODEL };
+    }
+    return (await response.json()) as ModelSetting;
+  } catch {
+    return { id: 1, model_name: DEFAULT_MODEL };
+  }
+}
+
+export async function setModel(model: string): Promise<ModelSetting> {
+  const response = await fetch(`${API_BASE}/api/settings/model`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ model_name: model })
+  });
+  if (!response.ok) {
+    throw new Error("Failed to update model");
+  }
+  return (await response.json()) as ModelSetting;
+}
+
+export async function uploadPromptPreview(file: File): Promise<MediaUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/api/media/prompt-preview`, {
+    method: "POST",
+    body: formData
+  });
+  if (!response.ok) {
+    throw new Error("Failed to upload preview image");
+  }
+  return (await response.json()) as MediaUploadResponse;
+}
+
+export async function uploadPromptIcon(file: File): Promise<MediaUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/api/media/prompt-icon`, {
+    method: "POST",
+    body: formData
+  });
+  if (!response.ok) {
+    throw new Error("Failed to upload icon image");
+  }
+  return (await response.json()) as MediaUploadResponse;
+}
+
+export async function createPrompt(payload: PromptCreate): Promise<StylePrompt> {
+  const response = await fetch(`${API_BASE}/api/prompts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create style prompt");
+  }
+  return (await response.json()) as StylePrompt;
+}
