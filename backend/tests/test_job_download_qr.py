@@ -58,12 +58,11 @@ def test_legacy_download_endpoint_is_not_exposed(monkeypatch) -> None:
     assert response.status_code == 404
 
 
-def test_qr_uses_public_base_url_when_configured(monkeypatch) -> None:
+def test_qr_always_uses_request_base_url(monkeypatch) -> None:
     _reset_db()
     client = TestClient(app)
     job_id = _create_completed_job(client, monkeypatch)
 
-    monkeypatch.setenv("QR_PUBLIC_BASE_URL", "https://qr.aiphoto.pups-labs.ru")
     captured: dict[str, str] = {}
 
     def fake_build_qr_png(url: str) -> bytes:
@@ -79,7 +78,7 @@ def test_qr_uses_public_base_url_when_configured(monkeypatch) -> None:
         job = db.get(GenerationJob, job_id)
         assert job is not None
         assert job.qr_hash is not None
-        assert captured["url"] == f"https://qr.aiphoto.pups-labs.ru/qr/{job.qr_hash}"
+        assert captured["url"] == f"http://testserver/qr/{job.qr_hash}"
 
 
 def test_public_qr_hash_endpoint_returns_file(monkeypatch) -> None:

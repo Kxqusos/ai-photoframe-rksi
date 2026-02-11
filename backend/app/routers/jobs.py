@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
@@ -21,9 +20,6 @@ public_router = APIRouter(prefix="/qr", tags=["qr"])
 
 
 def _build_qr_target_url(request: Request, qr_hash: str) -> str:
-    public_base_url = os.getenv("QR_PUBLIC_BASE_URL")
-    if public_base_url:
-        return public_base_url.rstrip("/") + f"/qr/{qr_hash}"
     return str(request.base_url).rstrip("/") + f"/qr/{qr_hash}"
 
 
