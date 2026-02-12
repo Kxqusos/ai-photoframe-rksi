@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -20,3 +20,14 @@ def create_prompt(payload: PromptCreate, db: Session = Depends(get_db)) -> Promp
     db.commit()
     db.refresh(row)
     return row
+
+
+@router.delete("/{prompt_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_prompt(prompt_id: int, db: Session = Depends(get_db)) -> Response:
+    row = db.get(Prompt, prompt_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found")
+
+    db.delete(row)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

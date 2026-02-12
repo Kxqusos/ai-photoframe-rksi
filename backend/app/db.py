@@ -1,10 +1,38 @@
 import os
 from collections.abc import Generator
+from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./photoframe.db")
+_BASE_DIR = Path(__file__).resolve().parents[1]
+
+
+def _resolve_database_url(raw_url: str | None) -> str:
+    if not raw_url:
+        return f"sqlite:///{(_BASE_DIR / 'photoframe.db').resolve().as_posix()}"
+
+    sqlite_prefixes = ("sqlite:///", "sqlite+pysqlite:///")
+    for prefix in sqlite_prefixes:
+        if not raw_url.startswith(prefix):
+            continue
+
+        path_and_query = raw_url[len(prefix) :]
+        path_part, has_query, query_string = path_and_query.partition("?")
+
+        if path_part in {":memory:", ""} or path_part.startswith("/") or path_part.startswith("file:"):
+            return raw_url
+
+        resolved = (_BASE_DIR / path_part).resolve().as_posix()
+        normalized = f"{prefix}{resolved}"
+        if has_query:
+            normalized = f"{normalized}?{query_string}"
+        return normalized
+
+    return raw_url
+
+
+DATABASE_URL = _resolve_database_url(os.getenv("DATABASE_URL"))
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)

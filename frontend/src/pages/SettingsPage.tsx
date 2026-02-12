@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { PromptForm, type PromptFormValues } from "../components/PromptForm";
 import {
   createPrompt,
+  deletePrompt,
   getModel,
   listModels,
   listPrompts,
@@ -27,6 +28,7 @@ export function SettingsPage() {
   const [formValues, setFormValues] = useState<PromptFormValues>(EMPTY_FORM);
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
+  const [deletingPromptIds, setDeletingPromptIds] = useState<number[]>([]);
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
@@ -102,11 +104,24 @@ export function SettingsPage() {
     }
   }
 
+  async function onDeletePrompt(promptId: number) {
+    setError("");
+    setDeletingPromptIds((current) => [...current, promptId]);
+    try {
+      await deletePrompt(promptId);
+      setPrompts((current) => current.filter((item) => item.id !== promptId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to delete prompt");
+    } finally {
+      setDeletingPromptIds((current) => current.filter((id) => id !== promptId));
+    }
+  }
+
   return (
-    <main>
+    <main className="page">
       <h1>Settings</h1>
 
-      <section>
+      <section className="panel form-grid">
         <h2>OpenRouter model</h2>
         <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
           {models.map((modelName) => (
@@ -115,23 +130,36 @@ export function SettingsPage() {
             </option>
           ))}
         </select>
-        <button type="button" onClick={onSaveModel} disabled={savingModel || !selectedModel}>
-          Применить модель
-        </button>
+        <div className="action-row">
+          <button type="button" onClick={onSaveModel} disabled={savingModel || !selectedModel}>
+            Применить модель
+          </button>
+        </div>
       </section>
 
       <PromptForm values={formValues} onChange={setFormValues} onSubmit={onSavePrompt} isSubmitting={savingPrompt} />
 
       {error ? <p role="alert">{error}</p> : null}
 
-      <section>
+      <section className="prompt-list">
         <h2>Стили</h2>
         {prompts.length === 0 ? <p>Пока нет стилей</p> : null}
         {prompts.map((item) => (
-          <article key={item.id}>
+          <article key={item.id} className="prompt-item">
             <h3>{item.name}</h3>
             <p>{item.description}</p>
             <img src={item.preview_image_url} alt={`${item.name} preview`} width={120} height={80} />
+            <div className="prompt-item__actions">
+              <button
+                type="button"
+                className="button-secondary"
+                aria-label={`Удалить стиль ${item.name}`}
+                onClick={() => void onDeletePrompt(item.id)}
+                disabled={deletingPromptIds.includes(item.id)}
+              >
+                Удалить
+              </button>
+            </div>
           </article>
         ))}
       </section>

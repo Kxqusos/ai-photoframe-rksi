@@ -1,3 +1,5 @@
+import time
+
 from fastapi.testclient import TestClient
 
 from app.db import Base, SessionLocal, engine
@@ -35,7 +37,16 @@ def _create_completed_job(client: TestClient, monkeypatch) -> int:
         data={"prompt_id": str(prompt_id)},
     )
     assert created_job.status_code == 202
-    return created_job.json()["id"]
+    job_id = created_job.json()["id"]
+
+    for _ in range(30):
+        status = client.get(f"/api/jobs/{job_id}")
+        assert status.status_code == 200
+        if status.json()["status"] == "completed":
+            return job_id
+        time.sleep(0.02)
+
+    raise AssertionError("job did not reach completed status in time")
 
 
 def test_qr_endpoint_returns_png_for_completed_job(monkeypatch) -> None:
@@ -95,3 +106,5 @@ def test_public_qr_hash_endpoint_returns_file(monkeypatch) -> None:
     response = client.get(f"/qr/{qr_hash}")
     assert response.status_code == 200
     assert response.content == b"generated-png-bytes"
+    assert 'filename="photoframe-' in response.headers.get("content-disposition", "")
+    assert response.headers.get("content-disposition", "").endswith('.jpg"')

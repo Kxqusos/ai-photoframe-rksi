@@ -3,6 +3,7 @@ import React from "react";
 import { CapturePage } from "./pages/CapturePage";
 import { ResultPage } from "./pages/ResultPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { StylesPage } from "./pages/StylesPage";
 
 function resolvePathname(): string {
   if (typeof window === "undefined") {
@@ -20,6 +21,10 @@ export default function App() {
 
   if (pathname === "/result") {
     return <ResultPage />;
+  }
+
+  if (pathname === "/styles") {
+    return <StylesPage />;
   }
 
   return <CapturePage />;

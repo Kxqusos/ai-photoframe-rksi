@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.config import settings
+from app.config import configure_logging, settings
 from app.db import init_db
 from app.routers import jobs, media, prompts, settings as settings_router
 
@@ -12,6 +12,7 @@ app = FastAPI(title=settings.app_name)
 
 @app.on_event("startup")
 def on_startup() -> None:
+    configure_logging()
     init_db()
 
 

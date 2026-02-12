@@ -17,7 +17,7 @@ type Props = {
 
 export function PromptForm({ values, onChange, onSubmit, isSubmitting = false }: Props) {
   return (
-    <section>
+    <section className="panel form-grid">
       <h2>Новый стиль</h2>
 
       <label htmlFor="prompt-name">Название</label>

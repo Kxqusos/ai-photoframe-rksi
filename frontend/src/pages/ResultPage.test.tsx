@@ -22,5 +22,9 @@ test("shows generated image and qr code when job completes", async () => {
   render(<ResultPage jobId={77} />);
 
   expect(await screen.findByAltText(/generated photo/i)).toBeInTheDocument();
+  expect(screen.getByRole("main")).toHaveTextContent("Результат");
+  expect(screen.getByText(/сканируйте qr-код/i)).toBeInTheDocument();
+  expect(screen.getAllByRole("link", { name: /скачать фото/i })).toHaveLength(2);
   expect(screen.getByAltText(/download qr/i)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /продолжить/i })).not.toBeInTheDocument();
 });

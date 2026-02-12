@@ -7,7 +7,7 @@ import type {
   StylePrompt
 } from "../types";
 
-const API_BASE = "";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const FALLBACK_STYLES: StylePrompt[] = [
   {
     id: 1,
@@ -18,11 +18,11 @@ const FALLBACK_STYLES: StylePrompt[] = [
     icon_image_url: "/media/icons/anime.png"
   }
 ];
-const DEFAULT_MODEL = "openai/gpt-image-1";
+const DEFAULT_MODEL = "openai/gpt-5-image";
 const AVAILABLE_MODELS = [
-  "openai/gpt-image-1",
-  "google/gemini-2.5-flash-image-preview",
-  "stabilityai/stable-diffusion-3.5-large"
+  "openai/gpt-5-image",
+  "google/gemini-2.5-flash-image",
+  "sourceful/riverflow-v2-fast-preview"
 ];
 
 export async function listPrompts(): Promise<StylePrompt[]> {
@@ -132,4 +132,13 @@ export async function createPrompt(payload: PromptCreate): Promise<StylePrompt> 
     throw new Error("Failed to create style prompt");
   }
   return (await response.json()) as StylePrompt;
+}
+
+export async function deletePrompt(promptId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/prompts/${promptId}`, {
+    method: "DELETE"
+  });
+  if (!response.ok) {
+    throw new Error("Failed to delete style prompt");
+  }
 }

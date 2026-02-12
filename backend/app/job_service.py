@@ -1,3 +1,4 @@
+import os
 from uuid import uuid4
 
 from pathlib import Path
@@ -12,11 +13,22 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 STORAGE_ROOT = BACKEND_ROOT / "storage"
 SOURCE_DIR = STORAGE_ROOT / "source"
 RESULT_DIR = STORAGE_ROOT / "results"
+MAX_RESULT_FILES = 10
 
 SOURCE_DIR.mkdir(parents=True, exist_ok=True)
 RESULT_DIR.mkdir(parents=True, exist_ok=True)
 
-DEFAULT_MODEL_NAME = "openai/gpt-image-1"
+DEFAULT_MODEL_NAME = "openai/gpt-5-image"
+LEGACY_MODEL_NAME = "google/gemini-2.5-flash-image-preview"
+LEGACY_OPENAI_MODEL_NAME = "openai/gpt-image-1"
+LEGACY_MINI_MODEL_NAME = "openai/gpt-5-image-mini"
+
+
+def _resolve_result_suffix() -> str:
+    output_format = os.getenv("OPENROUTER_RESULT_FORMAT", "jpeg").strip().lower()
+    if output_format == "png":
+        return ".png"
+    return ".jpg"
 
 
 def _save_bytes(directory: Path, content: bytes, suffix: str) -> Path:
@@ -32,6 +44,32 @@ def _build_filename(job_id: int, suffix: str) -> str:
 
 def _generate_qr_hash() -> str:
     return uuid4().hex[:16]
+
+
+def _cleanup_source_file(path: str | None) -> None:
+    if not path:
+        return
+    try:
+        Path(path).unlink(missing_ok=True)
+    except OSError:
+        # Cleanup failure should not break the job lifecycle.
+        return
+
+
+def _prune_result_files(*, max_files: int = MAX_RESULT_FILES) -> None:
+    if max_files <= 0:
+        return
+
+    files = [path for path in RESULT_DIR.iterdir() if path.is_file()]
+    if len(files) <= max_files:
+        return
+
+    files.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    for stale in files[max_files:]:
+        try:
+            stale.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 def create_processing_job(db: Session, *, prompt_id: int, source_bytes: bytes) -> GenerationJob:
@@ -53,7 +91,12 @@ def _resolve_model_name(db: Session) -> str:
     setting = db.get(ModelSetting, 1)
     if setting is None:
         return DEFAULT_MODEL_NAME
-    return setting.model_name
+
+    model_name = setting.model_name.strip()
+    if not model_name or model_name in {LEGACY_MODEL_NAME, LEGACY_OPENAI_MODEL_NAME, LEGACY_MINI_MODEL_NAME}:
+        return DEFAULT_MODEL_NAME
+
+    return model_name
 
 
 def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
@@ -70,8 +113,9 @@ def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
         db.refresh(job)
         return job
 
+    source_path = job.source_path
     try:
-        source_bytes = Path(job.source_path).read_bytes() if job.source_path else b""
+        source_bytes = Path(source_path).read_bytes() if source_path else b""
         model_name = _resolve_model_name(db)
         generated = openrouter_client.generate_image(
             model=model_name,
@@ -79,8 +123,9 @@ def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
             image_bytes=source_bytes,
         )
 
-        result_path = RESULT_DIR / _build_filename(job.id, ".png")
+        result_path = RESULT_DIR / _build_filename(job.id, _resolve_result_suffix())
         result_path.write_bytes(generated)
+        _prune_result_files()
 
         job.result_path = str(result_path)
         if not job.qr_hash:
@@ -90,6 +135,9 @@ def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
     except Exception as exc:
         job.status = "error"
         job.error_message = str(exc)
+    finally:
+        _cleanup_source_file(source_path)
+        job.source_path = None
 
     db.add(job)
     db.commit()
