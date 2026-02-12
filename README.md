@@ -7,3 +7,4 @@ Monorepo for the photoframe service:
 ## Local run
 - API contract: `docs/api-contract.md`
 - Local runbook: `docs/run-local.md`
+- Docker deploy: `docs/deploy-docker.md`

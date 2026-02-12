@@ -8,6 +8,10 @@
 ## Backend
 1. `cd backend`
 2. `cp .env.example .env` and fill values
+   - For faster generation routing: keep `OPENROUTER_PROVIDER_SORT=throughput` and tune `OPENROUTER_PREFERRED_MAX_LATENCY` (seconds).
+   - Source image is preprocessed before OpenRouter call (`OPENROUTER_SOURCE_MAX_SIDE`, `OPENROUTER_SOURCE_JPEG_QUALITY`).
+   - Generated output is JPEG by default (`OPENROUTER_RESULT_FORMAT=jpeg`, quality via `OPENROUTER_JPEG_QUALITY`).
+   - Backend writes logs to `backend/logs/backend.log` by default (`LOG_FILE_PATH`).
 3. `uv run uvicorn app.main:app --reload`
 
 Backend starts at `http://127.0.0.1:8000`.

@@ -42,3 +42,5 @@ worktrees/
 
 # uv lock files
 uv.lock
+logs/
+docs/

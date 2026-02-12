@@ -24,7 +24,9 @@ test("shows generated image and qr code when job completes", async () => {
   expect(await screen.findByAltText(/generated photo/i)).toBeInTheDocument();
   expect(screen.getByRole("main")).toHaveTextContent("Результат");
   expect(screen.getByText(/сканируйте qr-код/i)).toBeInTheDocument();
-  expect(screen.getAllByRole("link", { name: /скачать фото/i })).toHaveLength(2);
+  expect(screen.getByRole("button", { name: /назад/i })).toBeInTheDocument();
+  expect(screen.getAllByRole("link", { name: /скачать фото/i })).toHaveLength(1);
+  expect(screen.queryByText(/^скачать фото$/i)).not.toBeInTheDocument();
   expect(screen.getByAltText(/download qr/i)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /продолжить/i })).not.toBeInTheDocument();
 });

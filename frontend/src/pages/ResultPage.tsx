@@ -62,6 +62,14 @@ export function ResultPage({ jobId: providedJobId }: Props) {
     return <p role="alert">{error}</p>;
   }
 
+  function onBack() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.assign("/");
+  }
+
   if (job?.status === "completed" && job.result_url && job.qr_url && job.download_url) {
     return (
       <main className="page result-page result-page--completed">
@@ -76,13 +84,13 @@ export function ResultPage({ jobId: providedJobId }: Props) {
           </section>
 
           <section className="panel result-download-panel">
+            <button type="button" className="button-secondary result-back-button" onClick={onBack}>
+              Назад
+            </button>
             <h2>Сканируйте QR-код</h2>
             <p className="result-download-hint">Откройте ссылку с телефона, чтобы скачать фото в полном размере.</p>
             <a href={job.download_url} className="result-qr-link" aria-label="Скачать фото">
               <img className="result-qr" src={job.qr_url} alt="download qr" width={220} />
-            </a>
-            <a href={job.download_url} className="result-download-link">
-              Скачать фото
             </a>
           </section>
         </div>

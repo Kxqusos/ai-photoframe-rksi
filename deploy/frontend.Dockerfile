@@ -8,9 +8,12 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM node:20-alpine
 
-COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/frontend/dist /usr/share/nginx/html
+WORKDIR /app/frontend
 
-EXPOSE 80
+COPY --from=build /app/frontend ./
+
+EXPOSE 4173
+
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "4173"]

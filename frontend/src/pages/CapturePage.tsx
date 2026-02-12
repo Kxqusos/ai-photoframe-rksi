@@ -93,18 +93,9 @@ export function CapturePage() {
     }
   }
 
-  function onStyleChange(event: React.ChangeEvent<HTMLSelectElement>) {
-    const nextId = Number(event.target.value);
-    if (!Number.isFinite(nextId)) {
-      return;
-    }
-    setSelectedId(nextId);
-    writeStoredStyleId(nextId);
-  }
-
-  function openStylesCatalog() {
-    const query = selectedId ? `?selectedId=${selectedId}` : "";
-    window.location.assign(`/styles${query}`);
+  function onStyleSelect(styleId: number) {
+    setSelectedId(styleId);
+    writeStoredStyleId(styleId);
   }
 
   function capturePhoto() {
@@ -176,27 +167,33 @@ export function CapturePage() {
           {isGenerating ? "Генерация..." : "Сделать фото"}
         </button>
       </div>
-      <aside className="capture-screen__style-corner">
-        <label htmlFor="capture-style-select" className="capture-screen__style-label">
-          Стиль
-        </label>
-        <select
-          id="capture-style-select"
-          aria-label="style selection"
-          className="capture-screen__style-select"
-          value={selectedId ?? ""}
-          onChange={onStyleChange}
-          disabled={styles.length === 0 || isGenerating}
-        >
+      <aside className="capture-screen__styles-panel" aria-label="style selection">
+        <p className="capture-screen__styles-title">Стили</p>
+        {styles.length === 0 ? <p className="capture-screen__styles-empty">Стили загружаются...</p> : null}
+        <div className="capture-screen__styles-list">
           {styles.map((style) => (
-            <option key={style.id} value={style.id}>
-              {style.name}
-            </option>
+            <button
+              key={style.id}
+              type="button"
+              className={`capture-style-item${style.id === selectedId ? " is-selected" : ""}`}
+              onClick={() => onStyleSelect(style.id)}
+              aria-pressed={style.id === selectedId}
+              disabled={isGenerating}
+            >
+              <img
+                src={style.preview_image_url}
+                alt={`${style.name} preview`}
+                width={92}
+                height={62}
+                className="capture-style-item__preview"
+              />
+              <span className="capture-style-item__meta">
+                <span className="capture-style-item__name">{style.name}</span>
+                <span className="capture-style-item__description">{style.description}</span>
+              </span>
+            </button>
           ))}
-        </select>
-        <button type="button" className="capture-screen__styles-link" onClick={openStylesCatalog}>
-          Каталог стилей
-        </button>
+        </div>
       </aside>
       <canvas ref={canvasRef} hidden />
     </main>

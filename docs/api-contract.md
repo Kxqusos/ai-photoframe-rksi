@@ -21,7 +21,7 @@
 - `POST /api/media/prompt-icon` (multipart `file`) -> `{ "url": "/media/icons/..." }`
 
 ## Jobs
-- `POST /api/jobs` (multipart: `photo`, `prompt_id`) -> `{ "id": number, "status": "processing|completed|error" }`
+- `POST /api/jobs` (multipart: `photo`, `prompt_id`) -> `{ "id": number, "status": "processing" }` (generation continues in background)
 - `GET /api/jobs/{job_id}` ->
   - `status`
   - `result_url` (for completed jobs, points to `/qr/{qr_hash}`)

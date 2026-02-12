@@ -31,14 +31,16 @@ test("renders fullscreen camera preview with overlay capture button", async () =
 
   expect(screen.getByLabelText(/camera preview/i)).toHaveClass("capture-screen");
   expect(screen.getByRole("button", { name: /сделать фото/i })).toBeInTheDocument();
-  expect(await screen.findByLabelText(/style selection/i)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /каталог стилей/i })).toBeInTheDocument();
+  expect(await screen.findByLabelText(/style selection/i)).toHaveClass("capture-screen__styles-panel");
+  expect(screen.getByRole("button", { name: /anime/i })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /каталог стилей/i })).not.toBeInTheDocument();
   expect(screen.queryByText("AI Photoframe")).not.toBeInTheDocument();
 });
 
 test("shows camera capture button instead of upload input", async () => {
   render(<CapturePage />);
   expect(await screen.findByLabelText(/style selection/i)).toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: /style selection/i })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /сделать фото/i })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /generate/i })).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/upload photo/i)).not.toBeInTheDocument();
