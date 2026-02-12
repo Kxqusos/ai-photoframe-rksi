@@ -75,7 +75,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
       <main className="page result-page result-page--completed">
         <div className="result-shell">
           <section className="panel result-hero">
-            <p className="result-eyebrow">AI Photoframe</p>
+            <p className="result-eyebrow">ИИ Фоторамка</p>
             <h1>Результат</h1>
             <p className="result-subtitle">Ваше изображение готово. Сохраните его на телефон через QR-код.</p>
             <div className="result-media">
@@ -105,11 +105,11 @@ export function ResultPage({ jobId: providedJobId }: Props) {
   return (
     <main className="page result-page result-page--loading">
       <section className="panel result-loading-card">
-        <p className="result-eyebrow">AI Photoframe</p>
+        <p className="result-eyebrow">ИИ Фоторамка</p>
         <h1>Результат</h1>
         <p className="result-loading-text">Обработка изображения...</p>
         <div className="result-loading-bar" aria-hidden="true">
-          <span className="result-loading-bar__progress" />
+          <span className="result-loading-bar__progress result-loading-bar__progress--indeterminate" />
         </div>
       </section>
     </main>

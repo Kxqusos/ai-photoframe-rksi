@@ -30,3 +30,16 @@ test("shows generated image and qr code when job completes", async () => {
   expect(screen.getByAltText(/download qr/i)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /продолжить/i })).not.toBeInTheDocument();
 });
+
+test("shows smooth indeterminate progress bar while image is processing", async () => {
+  getJobStatusMock.mockResolvedValue({
+    id: 77,
+    status: "processing"
+  });
+
+  render(<ResultPage jobId={77} />);
+
+  expect(await screen.findByText(/обработка изображения/i)).toBeInTheDocument();
+  const progress = document.querySelector(".result-loading-bar__progress--indeterminate");
+  expect(progress).toBeInTheDocument();
+});

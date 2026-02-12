@@ -64,7 +64,7 @@ export function StylesPage() {
   return (
     <main className="page styles-page">
       <section className="styles-hero">
-        <p className="styles-hero__eyebrow">AI Photoframe</p>
+        <p className="styles-hero__eyebrow">ИИ Фоторамка</p>
         <h1>Выберите стиль</h1>
         <p className="styles-hero__description">
           Подберите визуальный стиль перед съёмкой: просмотр, сравнение и быстрый возврат на экран камеры.
