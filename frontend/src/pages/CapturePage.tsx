@@ -151,50 +151,54 @@ export function CapturePage() {
 
   return (
     <main className="capture-screen" aria-label="camera preview">
-      <video ref={videoRef} className="capture-screen__video" autoPlay playsInline muted />
-      {countdown !== null ? (
-        <div className="camera-overlay" aria-live="assertive">
-          <span className="camera-countdown">{countdown}</span>
+      <section className="capture-screen__preview" data-testid="camera-preview">
+        <video ref={videoRef} className="capture-screen__video" autoPlay playsInline muted />
+        {countdown !== null ? (
+          <div className="camera-overlay" aria-live="assertive">
+            <span className="camera-countdown">{countdown}</span>
+          </div>
+        ) : null}
+        <div className="capture-screen__controls">
+          <button
+            type="button"
+            className="capture-screen__button"
+            onClick={startCountdown}
+            disabled={!cameraReady || countdown !== null || isGenerating || selectedId === null}
+          >
+            {isGenerating ? "Генерация..." : "Сделать фото"}
+          </button>
         </div>
-      ) : null}
-      <div className="capture-screen__controls">
-        <button
-          type="button"
-          className="capture-screen__button"
-          onClick={startCountdown}
-          disabled={!cameraReady || countdown !== null || isGenerating || selectedId === null}
-        >
-          {isGenerating ? "Генерация..." : "Сделать фото"}
-        </button>
-      </div>
-      <aside className="capture-screen__styles-panel" aria-label="style selection">
-        <p className="capture-screen__styles-title">Стили</p>
-        {styles.length === 0 ? <p className="capture-screen__styles-empty">Стили загружаются...</p> : null}
-        <div className="capture-screen__styles-list">
-          {styles.map((style) => (
-            <button
-              key={style.id}
-              type="button"
-              className={`capture-style-item${style.id === selectedId ? " is-selected" : ""}`}
-              onClick={() => onStyleSelect(style.id)}
-              aria-pressed={style.id === selectedId}
-              disabled={isGenerating}
-            >
-              <img
-                src={style.preview_image_url}
-                alt={`${style.name} preview`}
-                width={92}
-                height={62}
-                className="capture-style-item__preview"
-              />
-              <span className="capture-style-item__meta">
-                <span className="capture-style-item__name">{style.name}</span>
-                <span className="capture-style-item__description">{style.description}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </aside>
+      </section>
+      <section className="capture-screen__styles-zone">
+        <aside className="capture-screen__styles-panel" aria-label="style selection">
+          <p className="capture-screen__styles-title">Стили</p>
+          {styles.length === 0 ? <p className="capture-screen__styles-empty">Стили загружаются...</p> : null}
+          <div className="capture-screen__styles-list">
+            {styles.map((style) => (
+              <button
+                key={style.id}
+                type="button"
+                className={`capture-style-item${style.id === selectedId ? " is-selected" : ""}`}
+                onClick={() => onStyleSelect(style.id)}
+                aria-pressed={style.id === selectedId}
+                disabled={isGenerating}
+              >
+                <img
+                  src={style.preview_image_url}
+                  alt={`${style.name} preview`}
+                  width={92}
+                  height={62}
+                  className="capture-style-item__preview"
+                />
+                <span className="capture-style-item__meta">
+                  <span className="capture-style-item__name">{style.name}</span>
+                  <span className="capture-style-item__description">{style.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </aside>
+      </section>
       <canvas ref={canvasRef} hidden />
     </main>
   );

@@ -180,16 +180,28 @@ button:disabled {
 .capture-screen {
   position: fixed;
   inset: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: #020617;
 }
 
+.capture-screen__preview {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  height: min(66vh, 75vw);
+  border-radius: 16px;
+  background: #020617;
+  overflow: hidden;
+}
+
 .capture-screen__video {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #000000;
 }
 
 .camera-overlay {
@@ -215,7 +227,7 @@ button:disabled {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: clamp(20px, 6vh, 48px);
+  bottom: clamp(12px, 2.8vh, 24px);
   z-index: 3;
   display: flex;
   justify-content: center;
@@ -235,14 +247,19 @@ button:disabled {
   backdrop-filter: blur(8px);
 }
 
+.capture-screen__styles-zone {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  padding: 0.6rem clamp(0.65rem, 2vw, 1.2rem) 0.9rem;
+}
+
 .capture-screen__styles-panel {
-  position: absolute;
-  left: clamp(14px, 3vw, 34px);
-  top: clamp(14px, 3vh, 30px);
-  z-index: 4;
-  width: min(340px, 34vw);
-  max-height: min(78vh, 900px);
+  width: min(1280px, 100%);
+  max-height: 100%;
+  margin: 0 auto;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.55rem;
   padding: 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.4);
@@ -269,6 +286,8 @@ button:disabled {
 
 .capture-screen__styles-list {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  align-content: start;
   gap: 0.45rem;
   overflow: auto;
   padding-right: 0.1rem;
@@ -324,9 +343,9 @@ button:disabled {
 .capture-style-item__description {
   font-size: 0.75rem;
   color: #e2e8f0;
+  line-height: 1.2;
+  max-height: 2.4em;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .capture-screen__styles-list::-webkit-scrollbar {
@@ -570,9 +589,16 @@ button:disabled {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 
-  .capture-screen__styles-panel {
-    width: min(300px, 84vw);
-    max-height: 62vh;
+  .capture-screen__preview {
+    height: min(58vh, 82vw);
+  }
+
+  .capture-screen__styles-zone {
+    padding: 0.5rem 0.55rem 0.75rem;
+  }
+
+  .capture-screen__styles-list {
+    grid-template-columns: 1fr;
   }
 
   .capture-style-item {
@@ -607,11 +633,12 @@ button:disabled {
 }
 
 @media (max-aspect-ratio: 9/16) {
-  .capture-screen__styles-panel {
-    left: 10px;
-    top: 10px;
-    width: min(44vw, 250px);
-    max-height: 70vh;
+  .capture-screen__preview {
+    height: min(54vh, 92vw);
+  }
+
+  .capture-screen__styles-zone {
+    padding-top: 0.45rem;
   }
 
   .capture-style-item {
@@ -647,9 +674,16 @@ button:disabled {
     max-width: 1500px;
   }
 
+  .capture-screen__preview {
+    height: min(70vh, 62vw);
+  }
+
   .capture-screen__styles-panel {
-    width: min(460px, 30vw);
-    max-height: 80vh;
+    width: min(1600px, 100%);
+  }
+
+  .capture-screen__styles-list {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   }
 
   .capture-style-item {

@@ -30,8 +30,11 @@ test("renders fullscreen camera preview with overlay capture button", async () =
   render(<CapturePage />);
 
   expect(screen.getByLabelText(/camera preview/i)).toHaveClass("capture-screen");
+  expect(screen.getByTestId("camera-preview")).toHaveClass("capture-screen__preview");
   expect(screen.getByRole("button", { name: /сделать фото/i })).toBeInTheDocument();
-  expect(await screen.findByLabelText(/style selection/i)).toHaveClass("capture-screen__styles-panel");
+  const stylesPanel = await screen.findByLabelText(/style selection/i);
+  expect(stylesPanel).toHaveClass("capture-screen__styles-panel");
+  expect(screen.getByTestId("camera-preview")).not.toContainElement(stylesPanel);
   expect(screen.getByRole("button", { name: /anime/i })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /каталог стилей/i })).not.toBeInTheDocument();
   expect(screen.queryByText("AI Photoframe")).not.toBeInTheDocument();

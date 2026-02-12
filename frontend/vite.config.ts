@@ -21,6 +21,11 @@ export default defineConfig({
       }
     }
   },
+  preview: {
+    host: true,
+    port: 4173,
+    allowedHosts: ["ии.ркси.рф", "xn--h1aa.xn--h1adrf.xn--p1ai"]
+  },
   test: {
     environment: "jsdom",
     globals: true,
