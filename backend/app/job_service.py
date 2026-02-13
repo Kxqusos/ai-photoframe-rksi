@@ -1,4 +1,5 @@
 import os
+import time
 from uuid import uuid4
 
 from pathlib import Path
@@ -13,7 +14,8 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 STORAGE_ROOT = BACKEND_ROOT / "storage"
 SOURCE_DIR = STORAGE_ROOT / "source"
 RESULT_DIR = STORAGE_ROOT / "results"
-MAX_RESULT_FILES = 10
+DEFAULT_RESULT_RETENTION_DAYS = 7
+_SECONDS_PER_DAY = 24 * 60 * 60
 
 SOURCE_DIR.mkdir(parents=True, exist_ok=True)
 RESULT_DIR.mkdir(parents=True, exist_ok=True)
@@ -56,18 +58,26 @@ def _cleanup_source_file(path: str | None) -> None:
         return
 
 
-def _prune_result_files(*, max_files: int = MAX_RESULT_FILES) -> None:
-    if max_files <= 0:
-        return
+def _resolve_result_retention_days() -> int:
+    raw_days = os.getenv("RESULT_RETENTION_DAYS", str(DEFAULT_RESULT_RETENTION_DAYS)).strip()
+    try:
+        days = int(raw_days)
+    except ValueError:
+        return DEFAULT_RESULT_RETENTION_DAYS
+    if days <= 0:
+        return DEFAULT_RESULT_RETENTION_DAYS
+    return days
+
+
+def _prune_result_files() -> None:
+    retention_days = _resolve_result_retention_days()
+    cutoff_timestamp = time.time() - (retention_days * _SECONDS_PER_DAY)
 
     files = [path for path in RESULT_DIR.iterdir() if path.is_file()]
-    if len(files) <= max_files:
-        return
-
-    files.sort(key=lambda path: path.stat().st_mtime, reverse=True)
-    for stale in files[max_files:]:
+    for stale in files:
         try:
-            stale.unlink(missing_ok=True)
+            if stale.stat().st_mtime < cutoff_timestamp:
+                stale.unlink(missing_ok=True)
         except OSError:
             continue
 

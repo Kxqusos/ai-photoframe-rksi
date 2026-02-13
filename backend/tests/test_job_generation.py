@@ -194,14 +194,66 @@ def test_create_job_removes_source_photo_after_processing(monkeypatch, tmp_path:
     assert list(source_dir.iterdir()) == []
 
 
-def test_create_job_keeps_only_10_newest_results(monkeypatch, tmp_path: Path) -> None:
+def test_create_job_removes_results_older_than_retention_days(monkeypatch, tmp_path: Path) -> None:
     _reset_db()
     _, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
 
-    for idx in range(10):
-        existing = result_dir / f"old-{idx:02d}.jpg"
-        existing.write_bytes(f"old-{idx}".encode("utf-8"))
-        timestamp = 1_700_000_000 + idx
+    monkeypatch.setenv("RESULT_RETENTION_DAYS", "7")
+
+    stale = result_dir / "old-stale.jpg"
+    stale.write_bytes(b"stale")
+    stale_timestamp = time.time() - (8 * 24 * 60 * 60)
+    os.utime(stale, (stale_timestamp, stale_timestamp))
+
+    fresh = result_dir / "old-fresh.jpg"
+    fresh.write_bytes(b"fresh")
+    fresh_timestamp = time.time() - (2 * 24 * 60 * 60)
+    os.utime(fresh, (fresh_timestamp, fresh_timestamp))
+
+    monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
+
+    client = TestClient(app)
+    prompt_id = _create_prompt(client)
+
+    created = client.post(
+        "/api/jobs",
+        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        data={"prompt_id": str(prompt_id)},
+    )
+    assert created.status_code == 202
+    job_id = created.json()["id"]
+
+    for _ in range(30):
+        status = client.get(f"/api/jobs/{job_id}")
+        assert status.status_code == 200
+        if status.json()["status"] == "completed":
+            break
+        time.sleep(0.02)
+
+    with SessionLocal() as db:
+        job = db.get(GenerationJob, job_id)
+        assert job is not None
+        assert job.result_path is not None
+        newest_result_path = Path(job.result_path)
+
+    result_files = list(result_dir.iterdir())
+    result_names = {path.name for path in result_files}
+    assert "old-stale.jpg" not in result_names
+    assert "old-fresh.jpg" in result_names
+    assert newest_result_path.name in result_names
+
+
+def test_create_job_keeps_all_recent_results_within_retention_days(monkeypatch, tmp_path: Path) -> None:
+    _reset_db()
+    _, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
+
+    monkeypatch.setenv("RESULT_RETENTION_DAYS", "7")
+
+    now = time.time()
+    for idx in range(12):
+        existing = result_dir / f"recent-{idx:02d}.jpg"
+        existing.write_bytes(f"recent-{idx}".encode("utf-8"))
+        timestamp = now - (12 - idx) * 60
         os.utime(existing, (timestamp, timestamp))
 
     monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
@@ -231,7 +283,8 @@ def test_create_job_keeps_only_10_newest_results(monkeypatch, tmp_path: Path) ->
         newest_result_path = Path(job.result_path)
 
     result_files = list(result_dir.iterdir())
-    assert len(result_files) == 10
+    assert len(result_files) == 13
     result_names = {path.name for path in result_files}
-    assert "old-00.jpg" not in result_names
     assert newest_result_path.name in result_names
+    for idx in range(12):
+        assert f"recent-{idx:02d}.jpg" in result_names
