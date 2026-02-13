@@ -10,6 +10,7 @@
 2. `cp .env.example .env` and fill values
    - For faster generation routing: keep `OPENROUTER_PROVIDER_SORT=throughput` and tune `OPENROUTER_PREFERRED_MAX_LATENCY` (seconds).
    - Source image is preprocessed before OpenRouter call (`OPENROUTER_SOURCE_MAX_SIDE`, `OPENROUTER_SOURCE_JPEG_QUALITY`).
+   - If OpenRouter returns a response without image data, backend retries automatically (`OPENROUTER_MISSING_IMAGE_RETRIES`).
    - Generated output is JPEG by default (`OPENROUTER_RESULT_FORMAT=jpeg`, quality via `OPENROUTER_JPEG_QUALITY`).
    - Generated files are stored for `RESULT_RETENTION_DAYS` and then pruned.
    - Backend writes logs to `backend/logs/backend.log` by default (`LOG_FILE_PATH`).

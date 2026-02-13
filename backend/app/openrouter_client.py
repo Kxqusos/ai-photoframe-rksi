@@ -18,7 +18,7 @@ DEFAULT_RESULT_FORMAT = "jpeg"
 DEFAULT_JPEG_QUALITY = 85
 DEFAULT_SOURCE_MAX_SIDE = 1280
 DEFAULT_SOURCE_JPEG_QUALITY = 85
-_MISSING_IMAGE_RETRY_COUNT = 1
+DEFAULT_MISSING_IMAGE_RETRIES = 3
 logger = logging.getLogger(__name__)
 
 
@@ -161,6 +161,16 @@ def _format_openrouter_error(exc: Exception) -> RuntimeError:
     return RuntimeError(f"OpenRouter request failed ({status}){suffix}")
 
 
+def _is_missing_image_error_message(message: str) -> bool:
+    normalized = message.lower()
+    return (
+        "does not contain image" in normalized
+        or "not contain image" in normalized
+        or "no image" in normalized
+        or "missing image" in normalized
+    )
+
+
 def _parse_positive_int(value: str | None) -> int | None:
     if value is None:
         return None
@@ -218,6 +228,15 @@ def _resolve_source_jpeg_quality() -> int:
     if parsed is None:
         return DEFAULT_SOURCE_JPEG_QUALITY
     return max(1, min(parsed, 95))
+
+
+def _resolve_missing_image_retries() -> int:
+    raw_retries = os.getenv("OPENROUTER_MISSING_IMAGE_RETRIES", str(DEFAULT_MISSING_IMAGE_RETRIES)).strip()
+    try:
+        retries = int(raw_retries)
+    except ValueError:
+        return DEFAULT_MISSING_IMAGE_RETRIES
+    return max(0, retries)
 
 
 def _prepare_source_image_for_request(image_bytes: bytes) -> bytes:
@@ -323,7 +342,8 @@ def generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
         }
     ]
 
-    for attempt in range(_MISSING_IMAGE_RETRY_COUNT + 1):
+    missing_image_retries = _resolve_missing_image_retries()
+    for attempt in range(missing_image_retries + 1):
         request_started = time.perf_counter()
         try:
             response = client.chat.completions.create(
@@ -339,7 +359,11 @@ def generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
                 model,
                 len(prepared_source),
             )
-            raise _format_openrouter_error(exc) from exc
+            formatted_error = _format_openrouter_error(exc)
+            if attempt < missing_image_retries and _is_missing_image_error_message(str(formatted_error)):
+                logger.warning("OpenRouter error indicates missing image (attempt %d), retrying", attempt + 1)
+                continue
+            raise formatted_error from exc
 
         data = _response_to_dict(response)
         elapsed_ms = int((time.perf_counter() - request_started) * 1000)
@@ -356,7 +380,7 @@ def generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
             decoded = _decode_image_data(data_url_or_b64)
             return _transform_output_image(decoded)
 
-        if attempt < _MISSING_IMAGE_RETRY_COUNT:
+        if attempt < missing_image_retries:
             logger.warning("OpenRouter response missing image data (attempt %d), retrying", attempt + 1)
             continue
 

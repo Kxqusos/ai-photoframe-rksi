@@ -277,7 +277,7 @@ def test_generate_image_raises_if_response_has_no_images(monkeypatch) -> None:
         )
 
 
-def test_generate_image_retries_once_when_response_has_no_images(monkeypatch) -> None:
+def test_generate_image_retries_until_response_has_images(monkeypatch) -> None:
     create_calls: list[dict] = []
     encoded = base64.b64encode(b"generated-after-empty-response").decode("utf-8")
     call_count = {"value": 0}
@@ -287,7 +287,7 @@ def test_generate_image_retries_once_when_response_has_no_images(monkeypatch) ->
             def create(self, **request_kwargs):
                 create_calls.append(request_kwargs)
                 call_count["value"] += 1
-                if call_count["value"] == 1:
+                if call_count["value"] < 3:
                     return _FakeResponse({"choices": [{"message": {}}]})
                 return _FakeResponse(
                     {
@@ -310,6 +310,7 @@ def test_generate_image_retries_once_when_response_has_no_images(monkeypatch) ->
         return type("Client", (), {"chat": type("Chat", (), {"completions": _FakeCompletions()})()})()
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MISSING_IMAGE_RETRIES", "3")
     monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
 
     result = openrouter_client.generate_image(
@@ -319,7 +320,7 @@ def test_generate_image_retries_once_when_response_has_no_images(monkeypatch) ->
     )
 
     assert result == b"generated-after-empty-response"
-    assert len(create_calls) == 2
+    assert len(create_calls) == 3
 
 
 def test_generate_image_includes_error_details_on_bad_request(monkeypatch) -> None:
@@ -344,6 +345,52 @@ def test_generate_image_includes_error_details_on_bad_request(monkeypatch) -> No
             prompt="Draw this in oil painting",
             image_bytes=b"source-image",
         )
+
+
+def test_generate_image_retries_on_missing_image_error_message(monkeypatch) -> None:
+    create_calls: list[dict] = []
+    encoded = base64.b64encode(b"generated-after-missing-image-error").decode("utf-8")
+    call_count = {"value": 0}
+
+    def fake_openai(**kwargs):
+        class _FakeCompletions:
+            def create(self, **request_kwargs):
+                create_calls.append(request_kwargs)
+                call_count["value"] += 1
+                if call_count["value"] == 1:
+                    raise _FakeStatusError(502, {"error": {"message": "response does not contain image"}})
+                return _FakeResponse(
+                    {
+                        "choices": [
+                            {
+                                "message": {
+                                    "images": [
+                                        {
+                                            "image_url": {
+                                                "url": f"data:image/png;base64,{encoded}"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                )
+
+        return type("Client", (), {"chat": type("Chat", (), {"completions": _FakeCompletions()})()})()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MISSING_IMAGE_RETRIES", "2")
+    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+
+    result = openrouter_client.generate_image(
+        model="openai/gpt-image-1",
+        prompt="Draw this in oil painting",
+        image_bytes=b"source-image",
+    )
+
+    assert result == b"generated-after-missing-image-error"
+    assert len(create_calls) == 2
 
 
 def test_generate_image_reports_runtime_interpreter_when_openai_is_missing(monkeypatch) -> None:
