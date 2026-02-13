@@ -18,6 +18,7 @@ DEFAULT_RESULT_FORMAT = "jpeg"
 DEFAULT_JPEG_QUALITY = 85
 DEFAULT_SOURCE_MAX_SIDE = 1280
 DEFAULT_SOURCE_JPEG_QUALITY = 85
+_MISSING_IMAGE_RETRY_COUNT = 1
 logger = logging.getLogger(__name__)
 
 
@@ -322,35 +323,43 @@ def generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
         }
     ]
 
-    request_started = time.perf_counter()
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            extra_body=_build_extra_body(),
-        )
-    except Exception as exc:
+    for attempt in range(_MISSING_IMAGE_RETRY_COUNT + 1):
+        request_started = time.perf_counter()
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                extra_body=_build_extra_body(),
+            )
+        except Exception as exc:
+            elapsed_ms = int((time.perf_counter() - request_started) * 1000)
+            logger.warning(
+                "OpenRouter request failed in %sms (model=%s, input_bytes=%d)",
+                elapsed_ms,
+                model,
+                len(prepared_source),
+            )
+            raise _format_openrouter_error(exc) from exc
+
+        data = _response_to_dict(response)
         elapsed_ms = int((time.perf_counter() - request_started) * 1000)
-        logger.warning(
-            "OpenRouter request failed in %sms (model=%s, input_bytes=%d)",
+        logger.info(
+            "OpenRouter request completed in %sms (model=%s, input_bytes=%d)",
             elapsed_ms,
             model,
             len(prepared_source),
         )
-        raise _format_openrouter_error(exc) from exc
+        data_url_or_b64 = _extract_image_data_url_from_choices(data)
+        if not data_url_or_b64:
+            data_url_or_b64 = _extract_image_b64_from_legacy_data(data)
+        if data_url_or_b64:
+            decoded = _decode_image_data(data_url_or_b64)
+            return _transform_output_image(decoded)
 
-    data = _response_to_dict(response)
-    elapsed_ms = int((time.perf_counter() - request_started) * 1000)
-    logger.info(
-        "OpenRouter request completed in %sms (model=%s, input_bytes=%d)",
-        elapsed_ms,
-        model,
-        len(prepared_source),
-    )
-    data_url_or_b64 = _extract_image_data_url_from_choices(data)
-    if not data_url_or_b64:
-        data_url_or_b64 = _extract_image_b64_from_legacy_data(data)
-    if not data_url_or_b64:
+        if attempt < _MISSING_IMAGE_RETRY_COUNT:
+            logger.warning("OpenRouter response missing image data (attempt %d), retrying", attempt + 1)
+            continue
+
         raise RuntimeError("OpenRouter response does not contain image data")
-    decoded = _decode_image_data(data_url_or_b64)
-    return _transform_output_image(decoded)
+
+    raise RuntimeError("OpenRouter response does not contain image data")
