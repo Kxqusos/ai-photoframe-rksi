@@ -38,17 +38,17 @@ test("renders masonry gallery and appends new images from polling", async () => 
     await Promise.resolve();
   });
 
-  expect(screen.getAllByAltText("first.jpg")).toHaveLength(2);
+  expect(screen.getAllByAltText("first.jpg")).toHaveLength(1);
 
   await act(async () => {
     await vi.advanceTimersByTimeAsync(5000);
   });
 
-  expect(screen.getAllByAltText("second.jpg")).toHaveLength(2);
+  expect(screen.getAllByAltText("second.jpg")).toHaveLength(1);
   expect(listGalleryResultsMock).toHaveBeenCalledTimes(2);
 });
 
-test("renders one continuous masonry stream with duplicated cards for looping", async () => {
+test("renders one continuous masonry stream without intentional duplicates", async () => {
   listGalleryResultsMock.mockResolvedValueOnce([
     { name: "loop-a.jpg", url: "/media/results/loop-a.jpg", modified_at: 20 },
     { name: "loop-b.jpg", url: "/media/results/loop-b.jpg", modified_at: 10 }
@@ -64,9 +64,9 @@ test("renders one continuous masonry stream with duplicated cards for looping", 
   expect(groups).toHaveLength(1);
 
   const cards = within(groups[0]).getAllByRole("img");
-  expect(cards).toHaveLength(4);
-  expect(within(groups[0]).getAllByAltText("loop-a.jpg")).toHaveLength(2);
-  expect(within(groups[0]).getAllByAltText("loop-b.jpg")).toHaveLength(2);
+  expect(cards).toHaveLength(2);
+  expect(within(groups[0]).getAllByAltText("loop-a.jpg")).toHaveLength(1);
+  expect(within(groups[0]).getAllByAltText("loop-b.jpg")).toHaveLength(1);
 });
 
 test("keeps auto scroll moving when browser stores scrollTop as integer", async () => {
@@ -164,22 +164,68 @@ test("applies mixed size variants to gallery cards", async () => {
   expect(variantNames.size).toBeGreaterThanOrEqual(3);
 });
 
-test("uses shifted second half in loop stream to avoid immediate mirrored repeats", async () => {
+test("reshuffles photos on cycle boundary without duplicating cards", async () => {
   listGalleryResultsMock.mockResolvedValueOnce([
-    { name: "a.jpg", url: "/media/results/a.jpg", modified_at: 40 },
-    { name: "b.jpg", url: "/media/results/b.jpg", modified_at: 30 },
-    { name: "c.jpg", url: "/media/results/c.jpg", modified_at: 20 },
-    { name: "d.jpg", url: "/media/results/d.jpg", modified_at: 10 }
+    { name: "a.jpg", url: "/media/results/a.jpg", modified_at: 30 },
+    { name: "b.jpg", url: "/media/results/b.jpg", modified_at: 20 },
+    { name: "c.jpg", url: "/media/results/c.jpg", modified_at: 10 }
   ]);
+
+  let rafCallback: FrameRequestCallback | null = null;
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      rafCallback = callback;
+      return 1;
+    })
+  );
+  const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
 
   render(<GalleryPage />);
 
   await act(async () => {
     await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  const container = screen.getByLabelText("gallery auto scroll");
+  const track = container.querySelector(".gallery-track");
+  expect(track).not.toBeNull();
+
+  Object.defineProperty(container, "clientHeight", {
+    configurable: true,
+    value: 300
+  });
+  Object.defineProperty(track, "scrollHeight", {
+    configurable: true,
+    value: 360
+  });
+
+  let scrollTopValue = 0;
+  Object.defineProperty(container, "scrollTop", {
+    configurable: true,
+    get: () => scrollTopValue,
+    set: (next: number) => {
+      scrollTopValue = next;
+    }
   });
 
   const group = screen.getByTestId("gallery-masonry-group");
-  const alts = within(group).getAllByRole("img").map((image) => image.getAttribute("alt"));
+  const initialOrder = within(group).getAllByRole("img").map((image) => image.getAttribute("alt"));
 
-  expect(alts).toEqual(["a.jpg", "b.jpg", "c.jpg", "d.jpg", "b.jpg", "c.jpg", "d.jpg", "a.jpg"]);
+  await act(async () => {
+    rafCallback?.(0);
+    rafCallback?.(3000);
+    rafCallback?.(6000);
+    await Promise.resolve();
+  });
+
+  const reshuffledOrder = within(screen.getByTestId("gallery-masonry-group"))
+    .getAllByRole("img")
+    .map((image) => image.getAttribute("alt"));
+
+  expect(reshuffledOrder).toHaveLength(3);
+  expect(new Set(reshuffledOrder).size).toBe(3);
+  expect(reshuffledOrder).not.toEqual(initialOrder);
+  randomSpy.mockRestore();
 });
