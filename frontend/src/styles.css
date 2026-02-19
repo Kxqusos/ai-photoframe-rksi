@@ -462,9 +462,17 @@ button:disabled {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.gallery-track {
+  display: block;
+}
+
 .gallery-masonry {
   column-count: 4;
   column-gap: 0.75rem;
+}
+
+.gallery-masonry--clone {
+  margin-top: 0;
 }
 
 .gallery-card {

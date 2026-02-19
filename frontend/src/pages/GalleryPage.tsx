@@ -10,7 +10,7 @@ export function GalleryPage() {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [error, setError] = useState<string>("");
   const scrollRef = useRef<HTMLElement | null>(null);
-  const loopImages = images.length > 0 ? [...images, ...images] : images;
+  const trackRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -44,7 +44,11 @@ export function GalleryPage() {
 
   useEffect(() => {
     const container = scrollRef.current;
+    const track = trackRef.current;
     if (!container) {
+      return;
+    }
+    if (!track) {
       return;
     }
     if (images.length === 0) {
@@ -62,8 +66,8 @@ export function GalleryPage() {
       const elapsed = timestamp - lastTick;
       lastTick = timestamp;
 
-      const cycleHeight = container.scrollHeight / 2;
-      if (cycleHeight > 0 && container.scrollHeight > container.clientHeight) {
+      const cycleHeight = track.scrollHeight / 2;
+      if (cycleHeight > 0 && track.scrollHeight > container.clientHeight) {
         const next = container.scrollTop + (elapsed / 1000) * AUTO_SCROLL_PIXELS_PER_SECOND;
         container.scrollTop = next >= cycleHeight ? next - cycleHeight : next;
       }
@@ -88,13 +92,24 @@ export function GalleryPage() {
       <section className="gallery-scroll" ref={scrollRef} aria-label="gallery auto scroll">
         {error ? <p role="alert">{error}</p> : null}
         {images.length === 0 && !error ? <p className="gallery-empty">Пока нет изображений.</p> : null}
-        <div className="gallery-masonry">
-          {loopImages.map((image, index) => (
-            <figure key={`${image.url}-${index}`} className="gallery-card">
-              <img src={image.url} alt={image.name} loading="lazy" />
-            </figure>
-          ))}
-        </div>
+        {images.length > 0 ? (
+          <div className="gallery-track" ref={trackRef}>
+            <div className="gallery-masonry" data-testid="gallery-masonry-group">
+              {images.map((image, index) => (
+                <figure key={`primary-${image.url}-${index}`} className="gallery-card">
+                  <img src={image.url} alt={image.name} loading="lazy" />
+                </figure>
+              ))}
+            </div>
+            <div className="gallery-masonry gallery-masonry--clone" data-testid="gallery-masonry-group" aria-hidden="true">
+              {images.map((image, index) => (
+                <figure key={`clone-${image.url}-${index}`} className="gallery-card">
+                  <img src={image.url} alt={image.name} loading="lazy" />
+                </figure>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
     </main>
   );

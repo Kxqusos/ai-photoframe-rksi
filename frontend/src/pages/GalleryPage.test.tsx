@@ -1,5 +1,5 @@
 import React from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { beforeEach, vi } from "vitest";
 
 import { GalleryPage } from "./GalleryPage";
@@ -60,6 +60,11 @@ test("renders duplicated image set for seamless circular scrolling", async () =>
     await Promise.resolve();
   });
 
-  expect(screen.getAllByAltText("loop-a.jpg")).toHaveLength(2);
-  expect(screen.getAllByAltText("loop-b.jpg")).toHaveLength(2);
+  const groups = screen.getAllByTestId("gallery-masonry-group");
+  expect(groups).toHaveLength(2);
+
+  expect(within(groups[0]).getAllByAltText("loop-a.jpg")).toHaveLength(1);
+  expect(within(groups[0]).getAllByAltText("loop-b.jpg")).toHaveLength(1);
+  expect(within(groups[1]).getAllByAltText("loop-a.jpg")).toHaveLength(1);
+  expect(within(groups[1]).getAllByAltText("loop-b.jpg")).toHaveLength(1);
 });
