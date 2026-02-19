@@ -5,12 +5,18 @@ import type { GalleryImage } from "../types";
 
 const POLL_INTERVAL_MS = 5000;
 const AUTO_SCROLL_PIXELS_PER_SECOND = 24;
+const CARD_SIZE_VARIANTS = ["square", "portrait", "landscape", "tall", "wide"] as const;
+
+function getCardSizeVariant(index: number): (typeof CARD_SIZE_VARIANTS)[number] {
+  return CARD_SIZE_VARIANTS[index % CARD_SIZE_VARIANTS.length];
+}
 
 export function GalleryPage() {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [error, setError] = useState<string>("");
   const scrollRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const loopImages = images.length > 0 ? [...images, ...images] : [];
 
   useEffect(() => {
     let active = true;
@@ -86,29 +92,23 @@ export function GalleryPage() {
 
   return (
     <main className="page gallery-page">
-      <header className="gallery-header panel">
-        <p className="gallery-header__eyebrow">ИИ Фоторамка</p>
-        <h1>Галерея</h1>
-      </header>
-
       <section className="gallery-scroll" ref={scrollRef} aria-label="gallery auto scroll">
         {error ? <p role="alert">{error}</p> : null}
         {images.length === 0 && !error ? <p className="gallery-empty">Пока нет изображений.</p> : null}
         {images.length > 0 ? (
           <div className="gallery-track" ref={trackRef}>
             <div className="gallery-masonry" data-testid="gallery-masonry-group">
-              {images.map((image, index) => (
-                <figure key={`primary-${image.url}-${index}`} className="gallery-card">
-                  <img src={image.url} alt={image.name} loading="lazy" />
-                </figure>
-              ))}
-            </div>
-            <div className="gallery-masonry gallery-masonry--clone" data-testid="gallery-masonry-group" aria-hidden="true">
-              {images.map((image, index) => (
-                <figure key={`clone-${image.url}-${index}`} className="gallery-card">
-                  <img src={image.url} alt={image.name} loading="lazy" />
-                </figure>
-              ))}
+              {loopImages.map((image, index) => {
+                const variantIndex = index % images.length;
+                return (
+                  <figure
+                    key={`loop-${image.url}-${index}`}
+                    className={`gallery-card gallery-card--${getCardSizeVariant(variantIndex)}`}
+                  >
+                    <img src={image.url} alt={image.name} loading="lazy" />
+                  </figure>
+                );
+              })}
             </div>
           </div>
         ) : null}
