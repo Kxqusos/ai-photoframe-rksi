@@ -11,12 +11,30 @@ function getCardSizeVariant(index: number): (typeof CARD_SIZE_VARIANTS)[number] 
   return CARD_SIZE_VARIANTS[index % CARD_SIZE_VARIANTS.length];
 }
 
+function buildLoopImages(images: GalleryImage[]): GalleryImage[] {
+  if (images.length === 0) {
+    return images;
+  }
+
+  if (images.length === 1) {
+    return [...images, ...images];
+  }
+
+  if (images.length === 2) {
+    return [...images, ...images];
+  }
+
+  const offset = 1;
+  const shifted = images.map((_, index) => images[(index + offset) % images.length]);
+  return [...images, ...shifted];
+}
+
 export function GalleryPage() {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [error, setError] = useState<string>("");
   const scrollRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const loopImages = images.length > 0 ? [...images, ...images] : [];
+  const loopImages = buildLoopImages(images);
 
   useEffect(() => {
     let active = true;
@@ -99,11 +117,10 @@ export function GalleryPage() {
           <div className="gallery-track" ref={trackRef}>
             <div className="gallery-masonry" data-testid="gallery-masonry-group">
               {loopImages.map((image, index) => {
-                const variantIndex = index % images.length;
                 return (
                   <figure
                     key={`loop-${image.url}-${index}`}
-                    className={`gallery-card gallery-card--${getCardSizeVariant(variantIndex)}`}
+                    className={`gallery-card gallery-card--${getCardSizeVariant(index)}`}
                   >
                     <img src={image.url} alt={image.name} loading="lazy" />
                   </figure>

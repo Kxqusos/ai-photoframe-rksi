@@ -163,3 +163,23 @@ test("applies mixed size variants to gallery cards", async () => {
 
   expect(variantNames.size).toBeGreaterThanOrEqual(3);
 });
+
+test("uses shifted second half in loop stream to avoid immediate mirrored repeats", async () => {
+  listGalleryResultsMock.mockResolvedValueOnce([
+    { name: "a.jpg", url: "/media/results/a.jpg", modified_at: 40 },
+    { name: "b.jpg", url: "/media/results/b.jpg", modified_at: 30 },
+    { name: "c.jpg", url: "/media/results/c.jpg", modified_at: 20 },
+    { name: "d.jpg", url: "/media/results/d.jpg", modified_at: 10 }
+  ]);
+
+  render(<GalleryPage />);
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  const group = screen.getByTestId("gallery-masonry-group");
+  const alts = within(group).getAllByRole("img").map((image) => image.getAttribute("alt"));
+
+  expect(alts).toEqual(["a.jpg", "b.jpg", "c.jpg", "d.jpg", "b.jpg", "c.jpg", "d.jpg", "a.jpg"]);
+});
