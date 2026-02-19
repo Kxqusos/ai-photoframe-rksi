@@ -47,7 +47,7 @@ async def create_job(
     return JobCreated(id=job.id, status=job.status)
 
 
-@router.get("/gallery", response_model=list[GalleryImageOut])
+@router.get("/g", response_model=list[GalleryImageOut])
 def get_gallery_images() -> list[GalleryImageOut]:
     rows = list_gallery_results()
     return [GalleryImageOut(**row) for row in rows]
