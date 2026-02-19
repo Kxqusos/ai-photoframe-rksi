@@ -57,6 +57,7 @@ export function GalleryPage() {
 
     let frameId = 0;
     let lastTick = 0;
+    let virtualScrollTop = container.scrollTop;
 
     const step = (timestamp: number) => {
       if (lastTick === 0) {
@@ -68,8 +69,9 @@ export function GalleryPage() {
 
       const cycleHeight = track.scrollHeight / 2;
       if (cycleHeight > 0 && track.scrollHeight > container.clientHeight) {
-        const next = container.scrollTop + (elapsed / 1000) * AUTO_SCROLL_PIXELS_PER_SECOND;
-        container.scrollTop = next >= cycleHeight ? next - cycleHeight : next;
+        const next = virtualScrollTop + (elapsed / 1000) * AUTO_SCROLL_PIXELS_PER_SECOND;
+        virtualScrollTop = next >= cycleHeight ? next - cycleHeight : next;
+        container.scrollTop = virtualScrollTop;
       }
 
       frameId = window.requestAnimationFrame(step);

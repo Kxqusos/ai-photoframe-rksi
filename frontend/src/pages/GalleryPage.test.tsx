@@ -68,3 +68,56 @@ test("renders duplicated image set for seamless circular scrolling", async () =>
   expect(within(groups[1]).getAllByAltText("loop-a.jpg")).toHaveLength(1);
   expect(within(groups[1]).getAllByAltText("loop-b.jpg")).toHaveLength(1);
 });
+
+test("keeps auto scroll moving when browser stores scrollTop as integer", async () => {
+  listGalleryResultsMock.mockResolvedValueOnce([
+    { name: "loop-a.jpg", url: "/media/results/loop-a.jpg", modified_at: 20 },
+    { name: "loop-b.jpg", url: "/media/results/loop-b.jpg", modified_at: 10 }
+  ]);
+
+  let rafCallback: FrameRequestCallback | null = null;
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      rafCallback = callback;
+      return 1;
+    })
+  );
+
+  render(<GalleryPage />);
+
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  const container = screen.getByLabelText("gallery auto scroll");
+  const track = container.querySelector(".gallery-track");
+  expect(track).not.toBeNull();
+
+  Object.defineProperty(container, "clientHeight", {
+    configurable: true,
+    value: 300
+  });
+  Object.defineProperty(track, "scrollHeight", {
+    configurable: true,
+    value: 1000
+  });
+
+  let scrollTopValue = 0;
+  Object.defineProperty(container, "scrollTop", {
+    configurable: true,
+    get: () => scrollTopValue,
+    set: (next: number) => {
+      scrollTopValue = Math.floor(next);
+    }
+  });
+
+  await act(async () => {
+    for (const timestamp of [0, 16, 32, 48, 64, 80, 96]) {
+      rafCallback?.(timestamp);
+    }
+  });
+
+  expect(scrollTopValue).toBeGreaterThan(0);
+});
