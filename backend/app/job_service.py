@@ -1,6 +1,8 @@
+import mimetypes
 import os
 import time
 from uuid import uuid4
+from urllib.parse import quote
 
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,20 @@ DEFAULT_MODEL_NAME = "openai/gpt-5-image"
 LEGACY_MODEL_NAME = "google/gemini-2.5-flash-image-preview"
 LEGACY_OPENAI_MODEL_NAME = "openai/gpt-image-1"
 LEGACY_MINI_MODEL_NAME = "openai/gpt-5-image-mini"
+_GALLERY_IMAGE_SUFFIXES = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".avif",
+    ".heic",
+    ".heif",
+    ".jfif",
+}
 
 
 def _resolve_result_suffix() -> str:
@@ -80,6 +96,31 @@ def _prune_result_files() -> None:
                 stale.unlink(missing_ok=True)
         except OSError:
             continue
+
+
+def _is_gallery_image_file(path: Path) -> bool:
+    media_type, _ = mimetypes.guess_type(path.name)
+    if media_type and media_type.startswith("image/"):
+        return True
+    return path.suffix.lower() in _GALLERY_IMAGE_SUFFIXES
+
+
+def list_gallery_results() -> list[dict[str, Any]]:
+    items: list[tuple[float, str]] = []
+    for path in RESULT_DIR.iterdir():
+        if not path.is_file() or not _is_gallery_image_file(path):
+            continue
+        try:
+            modified_at = path.stat().st_mtime
+        except OSError:
+            continue
+        items.append((modified_at, path.name))
+
+    items.sort(key=lambda item: item[0], reverse=True)
+    return [
+        {"name": name, "url": f"/media/results/{quote(name)}", "modified_at": modified_at}
+        for modified_at, name in items
+    ]
 
 
 def create_processing_job(db: Session, *, prompt_id: int, source_bytes: bytes) -> GenerationJob:

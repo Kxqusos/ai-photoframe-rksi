@@ -288,3 +288,41 @@ def test_create_job_keeps_all_recent_results_within_retention_days(monkeypatch, 
     assert newest_result_path.name in result_names
     for idx in range(12):
         assert f"recent-{idx:02d}.jpg" in result_names
+
+
+def test_gallery_endpoint_lists_result_files_newest_first(monkeypatch, tmp_path: Path) -> None:
+    _reset_db()
+    _, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    newest = result_dir / "newest.jpg"
+    newest.write_bytes(b"new")
+    oldest = result_dir / "oldest.png"
+    oldest.write_bytes(b"old")
+    skipped = result_dir / "note.txt"
+    skipped.write_text("skip me", encoding="utf-8")
+
+    now = time.time()
+    os.utime(oldest, (now - 100, now - 100))
+    os.utime(newest, (now - 10, now - 10))
+
+    response = client.get("/api/jobs/gallery")
+    assert response.status_code == 200
+
+    body = response.json()
+    assert [item["name"] for item in body] == ["newest.jpg", "oldest.png"]
+    assert body[0]["url"] == "/media/results/newest.jpg"
+    assert body[1]["url"] == "/media/results/oldest.png"
+
+
+def test_gallery_endpoint_includes_other_image_extensions(monkeypatch, tmp_path: Path) -> None:
+    _reset_db()
+    _, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    gif_file = result_dir / "photo.gif"
+    gif_file.write_bytes(b"GIF89a")
+
+    response = client.get("/api/jobs/gallery")
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()] == ["photo.gif"]

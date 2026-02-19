@@ -420,6 +420,82 @@ button:disabled {
   color: #0f172a;
 }
 
+.gallery-page {
+  max-width: 1400px;
+  height: 100dvh;
+  min-height: 100vh;
+  padding-top: 0.85rem;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.gallery-header {
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 94% 6%, rgba(14, 165, 233, 0.2), transparent 35%),
+    radial-gradient(circle at 8% 95%, rgba(16, 185, 129, 0.2), transparent 34%),
+    #ffffff;
+}
+
+.gallery-header__eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.78rem;
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.gallery-header h1 {
+  margin: 0.18rem 0 0;
+  font-size: clamp(1.5rem, 3vw, 2.3rem);
+}
+
+.gallery-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  border-radius: 18px;
+  padding: 0.6rem 0.35rem 0.6rem 0.6rem;
+  border: 1px solid #d9e1ea;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.gallery-masonry {
+  column-count: 4;
+  column-gap: 0.75rem;
+}
+
+.gallery-card {
+  margin: 0 0 0.75rem;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #d9e1ea;
+  break-inside: avoid;
+}
+
+.gallery-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.gallery-empty {
+  margin: 0.3rem 0 0.6rem;
+  color: #475569;
+}
+
+.gallery-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.gallery-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.6);
+  border-radius: 999px;
+}
+
 .result-page--completed {
   max-width: 1200px;
   width: 100%;
@@ -621,6 +697,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .gallery-masonry {
+    column-count: 2;
+  }
+
   .result-page--completed {
     align-items: stretch;
   }
@@ -636,6 +716,18 @@ button:disabled {
 
   .result-photo {
     max-height: 52vh;
+  }
+}
+
+@media (min-width: 733px) and (max-width: 980px) {
+  .gallery-masonry {
+    column-count: 3;
+  }
+}
+
+@media (max-width: 560px) {
+  .gallery-masonry {
+    column-count: 1;
   }
 }
 

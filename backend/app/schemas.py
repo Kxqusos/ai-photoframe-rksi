@@ -38,3 +38,9 @@ class JobStatusOut(BaseModel):
     download_url: str | None = None
     qr_url: str | None = None
     error_message: str | None = None
+
+
+class GalleryImageOut(BaseModel):
+    name: str
+    url: str
+    modified_at: float

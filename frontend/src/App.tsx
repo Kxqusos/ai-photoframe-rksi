@@ -1,6 +1,7 @@
 import React from "react";
 
 import { CapturePage } from "./pages/CapturePage";
+import { GalleryPage } from "./pages/GalleryPage";
 import { ResultPage } from "./pages/ResultPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -20,6 +21,10 @@ export default function App() {
 
   if (pathname === "/result") {
     return <ResultPage />;
+  }
+
+  if (pathname === "/gallery") {
+    return <GalleryPage />;
   }
 
   return <CapturePage />;

@@ -37,3 +37,9 @@ export type ModelSetting = {
 export type MediaUploadResponse = {
   url: string;
 };
+
+export type GalleryImage = {
+  name: string;
+  url: string;
+  modified_at: number;
+};

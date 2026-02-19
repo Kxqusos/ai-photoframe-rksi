@@ -1,4 +1,5 @@
 import type {
+  GalleryImage,
   JobCreated,
   JobStatus,
   MediaUploadResponse,
@@ -60,6 +61,14 @@ export async function getJobStatus(jobId: number): Promise<JobStatus> {
     throw new Error("Failed to fetch generation status");
   }
   return (await response.json()) as JobStatus;
+}
+
+export async function listGalleryResults(): Promise<GalleryImage[]> {
+  const response = await fetch(`${API_BASE}/api/jobs/gallery`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch gallery images");
+  }
+  return (await response.json()) as GalleryImage[];
 }
 
 export async function listModels(): Promise<string[]> {

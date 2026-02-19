@@ -11,10 +11,11 @@ from app.job_service import (
     get_completed_job_by_qr_hash,
     get_completed_job_or_404,
     get_job_or_404,
+    list_gallery_results,
     run_generation_sync,
 )
 from app.qr_service import build_qr_png
-from app.schemas import JobCreated, JobStatusOut
+from app.schemas import GalleryImageOut, JobCreated, JobStatusOut
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 public_router = APIRouter(prefix="/qr", tags=["qr"])
@@ -44,6 +45,12 @@ async def create_job(
     job = create_processing_job(db, prompt_id=prompt_id, source_bytes=payload)
     background_tasks.add_task(_run_generation_in_background, job.id)
     return JobCreated(id=job.id, status=job.status)
+
+
+@router.get("/gallery", response_model=list[GalleryImageOut])
+def get_gallery_images() -> list[GalleryImageOut]:
+    rows = list_gallery_results()
+    return [GalleryImageOut(**row) for row in rows]
 
 
 @router.get("/{job_id}", response_model=JobStatusOut)
