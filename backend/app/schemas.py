@@ -1,6 +1,19 @@
 from pydantic import BaseModel, ConfigDict
 
 
+class RoomCreate(BaseModel):
+    slug: str
+    name: str
+    model_name: str
+    is_active: bool = True
+
+
+class RoomOut(RoomCreate):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PromptCreate(BaseModel):
     name: str
     description: str
