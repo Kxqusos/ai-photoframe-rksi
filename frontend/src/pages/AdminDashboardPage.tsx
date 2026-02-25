@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { AdminRoomForm } from "../components/AdminRoomForm";
 import { createRoom, listRooms } from "../lib/api";
 import { loadAdminToken } from "../lib/auth";
+import { navigateTo } from "../lib/navigation";
 import type { Room } from "../types";
 
 export function AdminDashboardPage() {
@@ -21,7 +22,7 @@ export function AdminDashboardPage() {
 
   useEffect(() => {
     if (!loadAdminToken()) {
-      window.history.pushState({}, "", "/admin/login");
+      navigateTo("/admin/login");
       return;
     }
     void load();

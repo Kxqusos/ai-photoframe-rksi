@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AdminPromptManager } from "../components/AdminPromptManager";
 import { createRoomAdminPrompt, deleteRoomAdminPrompt, listRoomAdminPrompts, listRooms, updateRoomModel } from "../lib/api";
 import { loadAdminToken } from "../lib/auth";
+import { navigateTo } from "../lib/navigation";
 import type { Room, StylePrompt } from "../types";
 
 type Props = {
@@ -28,7 +29,7 @@ export function AdminRoomEditorPage({ roomId }: Props) {
 
   useEffect(() => {
     if (!loadAdminToken()) {
-      window.history.pushState({}, "", "/admin/login");
+      navigateTo("/admin/login");
       return;
     }
     void loadAll();

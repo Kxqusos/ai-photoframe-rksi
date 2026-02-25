@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 import { adminLogin } from "../lib/api";
 import { saveAdminToken } from "../lib/auth";
+import { navigateTo } from "../lib/navigation";
 
 export function AdminLoginPage() {
   const [username, setUsername] = useState("");
@@ -12,7 +13,7 @@ export function AdminLoginPage() {
     try {
       const token = await adminLogin(username, password);
       saveAdminToken(token.access_token);
-      window.history.pushState({}, "", "/admin");
+      navigateTo("/admin");
     } catch {
       setError("Invalid credentials");
     }

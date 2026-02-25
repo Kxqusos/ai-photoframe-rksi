@@ -1,4 +1,5 @@
 import React from "react";
+import { useEffect, useState } from "react";
 
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminLoginPage } from "./pages/AdminLoginPage";
@@ -17,7 +18,13 @@ function resolvePathname(): string {
 }
 
 export default function App() {
-  const pathname = resolvePathname();
+  const [pathname, setPathname] = useState(resolvePathname);
+
+  useEffect(() => {
+    const onPopstate = () => setPathname(resolvePathname());
+    window.addEventListener("popstate", onPopstate);
+    return () => window.removeEventListener("popstate", onPopstate);
+  }, []);
 
   if (pathname === "/admin/login") {
     return <AdminLoginPage />;
