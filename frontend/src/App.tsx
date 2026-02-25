@@ -1,5 +1,8 @@
 import React from "react";
 
+import { AdminDashboardPage } from "./pages/AdminDashboardPage";
+import { AdminLoginPage } from "./pages/AdminLoginPage";
+import { AdminRoomEditorPage } from "./pages/AdminRoomEditorPage";
 import { CapturePage } from "./pages/CapturePage";
 import { GalleryPage } from "./pages/GalleryPage";
 import { ResultPage } from "./pages/ResultPage";
@@ -15,6 +18,19 @@ function resolvePathname(): string {
 
 export default function App() {
   const pathname = resolvePathname();
+
+  if (pathname === "/admin/login") {
+    return <AdminLoginPage />;
+  }
+
+  if (pathname === "/admin") {
+    return <AdminDashboardPage />;
+  }
+
+  const adminRoomMatch = pathname.match(/^\/admin\/rooms\/(\d+)$/);
+  if (adminRoomMatch) {
+    return <AdminRoomEditorPage roomId={Number(adminRoomMatch[1])} />;
+  }
 
   if (pathname === "/settings") {
     return <SettingsPage />;
