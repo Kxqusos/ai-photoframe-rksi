@@ -240,7 +240,7 @@ def test_create_job_removes_results_older_than_retention_days(monkeypatch, tmp_p
     result_names = {path.name for path in result_files}
     assert "old-stale.jpg" not in result_names
     assert "old-fresh.jpg" in result_names
-    assert newest_result_path.name in result_names
+    assert newest_result_path.exists()
 
 
 def test_create_job_keeps_all_recent_results_within_retention_days(monkeypatch, tmp_path: Path) -> None:
@@ -285,7 +285,7 @@ def test_create_job_keeps_all_recent_results_within_retention_days(monkeypatch, 
     result_files = list(result_dir.iterdir())
     assert len(result_files) == 13
     result_names = {path.name for path in result_files}
-    assert newest_result_path.name in result_names
+    assert newest_result_path.exists()
     for idx in range(12):
         assert f"recent-{idx:02d}.jpg" in result_names
 
@@ -295,11 +295,14 @@ def test_gallery_endpoint_lists_result_files_newest_first(monkeypatch, tmp_path:
     _, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
     client = TestClient(app)
 
-    newest = result_dir / "newest.jpg"
+    room_dir = result_dir / "room-main"
+    room_dir.mkdir(parents=True, exist_ok=True)
+
+    newest = room_dir / "newest.jpg"
     newest.write_bytes(b"new")
-    oldest = result_dir / "oldest.png"
+    oldest = room_dir / "oldest.png"
     oldest.write_bytes(b"old")
-    skipped = result_dir / "note.txt"
+    skipped = room_dir / "note.txt"
     skipped.write_text("skip me", encoding="utf-8")
 
     now = time.time()
@@ -311,8 +314,8 @@ def test_gallery_endpoint_lists_result_files_newest_first(monkeypatch, tmp_path:
 
     body = response.json()
     assert [item["name"] for item in body] == ["newest.jpg", "oldest.png"]
-    assert body[0]["url"] == "/media/results/newest.jpg"
-    assert body[1]["url"] == "/media/results/oldest.png"
+    assert body[0]["url"] == "/media/results/room-main/newest.jpg"
+    assert body[1]["url"] == "/media/results/room-main/oldest.png"
 
 
 def test_gallery_endpoint_includes_other_image_extensions(monkeypatch, tmp_path: Path) -> None:
@@ -320,7 +323,10 @@ def test_gallery_endpoint_includes_other_image_extensions(monkeypatch, tmp_path:
     _, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
     client = TestClient(app)
 
-    gif_file = result_dir / "photo.gif"
+    room_dir = result_dir / "room-main"
+    room_dir.mkdir(parents=True, exist_ok=True)
+
+    gif_file = room_dir / "photo.gif"
     gif_file.write_bytes(b"GIF89a")
 
     response = client.get("/api/jobs/gallery")
