@@ -14,6 +14,17 @@ class RoomOut(RoomCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RoomUpdate(BaseModel):
+    slug: str
+    name: str
+    model_name: str
+    is_active: bool
+
+
+class RoomModelUpdate(BaseModel):
+    model_name: str
+
+
 class PromptCreate(BaseModel):
     name: str
     description: str
