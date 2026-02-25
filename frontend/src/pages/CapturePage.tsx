@@ -1,11 +1,17 @@
 import React from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { createJob, listPrompts } from "../lib/api";
+import { createRoomJob, listRoomPrompts } from "../lib/api";
+import { normalizeRoomSlug } from "../lib/roomRouting";
 import { readStoredStyleId, writeStoredStyleId } from "../lib/styleSelection";
 import type { StylePrompt } from "../types";
 
-export function CapturePage() {
+type Props = {
+  roomSlug: string;
+};
+
+export function CapturePage({ roomSlug }: Props) {
+  const resolvedRoomSlug = normalizeRoomSlug(roomSlug);
   const [styles, setStyles] = useState<StylePrompt[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -19,11 +25,11 @@ export function CapturePage() {
   useEffect(() => {
     let active = true;
 
-    listPrompts().then((items) => {
+    listRoomPrompts(resolvedRoomSlug).then((items) => {
       if (active) {
         setStyles(items);
         if (items.length > 0) {
-          const stored = readStoredStyleId();
+          const stored = readStoredStyleId(resolvedRoomSlug);
           const initial =
             (stored !== null && items.some((item) => item.id === stored) ? stored : null) ?? items[0].id;
           setSelectedId(initial);
@@ -34,7 +40,7 @@ export function CapturePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [resolvedRoomSlug]);
 
   useEffect(() => {
     let active = true;
@@ -86,8 +92,8 @@ export function CapturePage() {
 
     setIsGenerating(true);
     try {
-      const job = await createJob(capturedPhoto, selectedId);
-      window.location.assign(`/result?jobId=${job.id}`);
+      const job = await createRoomJob(resolvedRoomSlug, capturedPhoto, selectedId);
+      window.location.assign(`/${resolvedRoomSlug}/result/${job.id}`);
     } catch {
       setIsGenerating(false);
     }
@@ -95,7 +101,7 @@ export function CapturePage() {
 
   function onStyleSelect(styleId: number) {
     setSelectedId(styleId);
-    writeStoredStyleId(styleId);
+    writeStoredStyleId(styleId, resolvedRoomSlug);
   }
 
   function capturePhoto() {

@@ -7,7 +7,7 @@ import { GalleryPage } from "./GalleryPage";
 const listGalleryResultsMock = vi.fn();
 
 vi.mock("../lib/api", () => ({
-  listGalleryResults: () => listGalleryResultsMock()
+  listRoomGalleryResults: (roomSlug: string) => listGalleryResultsMock(roomSlug)
 }));
 
 beforeEach(() => {
@@ -32,7 +32,7 @@ test("renders masonry gallery and appends new images from polling", async () => 
       { name: "first.jpg", url: "/media/results/first.jpg", modified_at: 10 }
     ]);
 
-  render(<GalleryPage />);
+  render(<GalleryPage roomSlug="room-a" />);
 
   await act(async () => {
     await Promise.resolve();
@@ -54,7 +54,7 @@ test("renders one continuous masonry stream without intentional duplicates", asy
     { name: "loop-b.jpg", url: "/media/results/loop-b.jpg", modified_at: 10 }
   ]);
 
-  render(<GalleryPage />);
+  render(<GalleryPage roomSlug="room-a" />);
 
   await act(async () => {
     await Promise.resolve();
@@ -84,7 +84,7 @@ test("keeps auto scroll moving when browser stores scrollTop as integer", async 
     })
   );
 
-  render(<GalleryPage />);
+  render(<GalleryPage roomSlug="room-a" />);
 
   await act(async () => {
     await Promise.resolve();
@@ -127,7 +127,7 @@ test("renders gallery without title header and keeps auto-scroll container", asy
     { name: "photo.jpg", url: "/media/results/photo.jpg", modified_at: 10 }
   ]);
 
-  render(<GalleryPage />);
+  render(<GalleryPage roomSlug="room-a" />);
 
   await act(async () => {
     await Promise.resolve();
@@ -147,7 +147,7 @@ test("applies mixed size variants to gallery cards", async () => {
     { name: "photo-6.jpg", url: "/media/results/photo-6.jpg", modified_at: 10 }
   ]);
 
-  render(<GalleryPage />);
+  render(<GalleryPage roomSlug="room-a" />);
 
   await act(async () => {
     await Promise.resolve();
@@ -181,7 +181,7 @@ test("reshuffles photos on cycle boundary without duplicating cards", async () =
   );
   const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
 
-  render(<GalleryPage />);
+  render(<GalleryPage roomSlug="room-a" />);
 
   await act(async () => {
     await Promise.resolve();
@@ -227,5 +227,6 @@ test("reshuffles photos on cycle boundary without duplicating cards", async () =
   expect(reshuffledOrder).toHaveLength(3);
   expect(new Set(reshuffledOrder).size).toBe(3);
   expect(reshuffledOrder).not.toEqual(initialOrder);
+  expect(listGalleryResultsMock).toHaveBeenCalledWith("room-a");
   randomSpy.mockRestore();
 });

@@ -1,34 +1,35 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-import { getJobStatus } from "../lib/api";
+import { getRoomJobStatus } from "../lib/api";
+import { normalizeRoomSlug } from "../lib/roomRouting";
 import type { JobStatus } from "../types";
 
 type Props = {
-  jobId?: number;
+  roomSlug: string;
+  jpgHash?: string;
 };
 
-function resolveJobId(provided?: number): number | null {
-  if (typeof provided === "number" && Number.isFinite(provided)) {
+function resolveJpgHash(provided?: string): string | null {
+  if (typeof provided === "string" && provided.trim()) {
     return provided;
   }
 
-  const fromQuery = new URLSearchParams(window.location.search).get("jobId");
-  if (!fromQuery) {
+  const fromPath = window.location.pathname.match(/\/result\/([^/]+)\/?$/i)?.[1];
+  if (!fromPath) {
     return null;
   }
-
-  const value = Number(fromQuery);
-  return Number.isFinite(value) ? value : null;
+  return fromPath;
 }
 
-export function ResultPage({ jobId: providedJobId }: Props) {
-  const jobId = useMemo(() => resolveJobId(providedJobId), [providedJobId]);
+export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {
+  const resolvedRoomSlug = useMemo(() => normalizeRoomSlug(roomSlug), [roomSlug]);
+  const jpgHash = useMemo(() => resolveJpgHash(providedJpgHash), [providedJpgHash]);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
-    if (jobId === null) {
-      setError("jobId is required");
+    if (jpgHash === null) {
+      setError("jpgHash is required");
       return;
     }
 
@@ -36,7 +37,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
 
     async function poll() {
       try {
-        const status = await getJobStatus(jobId);
+        const status = await getRoomJobStatus(resolvedRoomSlug, jpgHash);
         if (cancelled) {
           return;
         }
@@ -56,7 +57,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [jobId]);
+  }, [jpgHash, resolvedRoomSlug]);
 
   if (error) {
     return <p role="alert">{error}</p>;
@@ -67,7 +68,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
       window.history.back();
       return;
     }
-    window.location.assign("/");
+    window.location.assign(`/${resolvedRoomSlug}`);
   }
 
   if (job?.status === "completed" && job.result_url && job.qr_url && job.download_url) {

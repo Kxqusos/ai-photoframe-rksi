@@ -7,7 +7,7 @@ import { ResultPage } from "./ResultPage";
 const getJobStatusMock = vi.fn();
 
 vi.mock("../lib/api", () => ({
-  getJobStatus: (jobId: number) => getJobStatusMock(jobId)
+  getRoomJobStatus: (roomSlug: string, jpgHash: string) => getJobStatusMock(roomSlug, jpgHash)
 }));
 
 test("shows generated image and qr code when job completes", async () => {
@@ -19,7 +19,9 @@ test("shows generated image and qr code when job completes", async () => {
     qr_url: "/api/jobs/77/qr"
   });
 
-  render(<ResultPage jobId={77} />);
+  render(<ResultPage roomSlug="room-a" jpgHash="77" />);
+
+  expect(getJobStatusMock).toHaveBeenCalledWith("room-a", "77");
 
   expect(await screen.findByAltText(/generated photo/i)).toBeInTheDocument();
   expect(screen.getByRole("main")).toHaveTextContent("Результат");
@@ -37,7 +39,7 @@ test("shows smooth indeterminate progress bar while image is processing", async 
     status: "processing"
   });
 
-  render(<ResultPage jobId={77} />);
+  render(<ResultPage roomSlug="room-a" jpgHash="77" />);
 
   expect(await screen.findByText(/обработка изображения/i)).toBeInTheDocument();
   const progress = document.querySelector(".result-loading-bar__progress--indeterminate");

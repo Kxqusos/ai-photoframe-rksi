@@ -17,10 +17,19 @@ vi.mock("./pages/GalleryPage", () => ({
 }));
 
 test("renders gallery page for /gallery pathname", () => {
-  window.history.pushState({}, "", "/gallery");
+  window.history.pushState({}, "", "/room-a/gallery");
 
   render(<App />);
 
   expect(screen.getByText("gallery-page")).toBeInTheDocument();
+  expect(screen.queryByText("capture-page")).not.toBeInTheDocument();
+});
+
+test("renders result page for room result pathname", () => {
+  window.history.pushState({}, "", "/room-a/result/abc123");
+
+  render(<App />);
+
+  expect(screen.getByText("result-page")).toBeInTheDocument();
   expect(screen.queryByText("capture-page")).not.toBeInTheDocument();
 });
