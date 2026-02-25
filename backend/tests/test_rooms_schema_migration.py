@@ -1,20 +1,22 @@
-import importlib
-import sys
 from pathlib import Path
 
 from sqlalchemy import inspect
+from sqlalchemy.orm import sessionmaker
 
 
 def _load_fresh_backend_modules(monkeypatch, tmp_path: Path):
-    db_file = tmp_path / "rooms-schema.db"
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_file}")
-
     import app.db as db_module
-
-    db_module = importlib.reload(db_module)
-
-    sys.modules.pop("app.models", None)
     import app.models as models_module
+
+    db_file = tmp_path / "rooms-schema.db"
+    database_url = f"sqlite:///{db_file}"
+    test_engine = db_module.create_engine(database_url, connect_args={"check_same_thread": False})
+    test_session_local = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    monkeypatch.setattr(db_module, "DATABASE_URL", database_url)
+    monkeypatch.setattr(db_module, "engine", test_engine)
+    monkeypatch.setattr(db_module, "SessionLocal", test_session_local)
+
     db_module.init_db()
     return db_module, models_module
 

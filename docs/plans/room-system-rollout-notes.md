@@ -32,15 +32,20 @@ Keep these until clients fully migrate to room-scoped API:
 ## Verification evidence
 ### Task 8 docs contract
 - `cd backend && uv run pytest tests/test_docs_room_contract.py tests/test_docs_contract.py -q`
-- Result: pass (`2 passed in 0.01s`).
+- Result: pass (`2 passed in 0.00s`).
 
 ### Task 9 full verification
 - `cd backend && uv run pytest -q`
-- Result: pending.
+- Result: pass (`53 passed, 1 skipped, 2 warnings in 3.64s`).
 - `cd frontend && npm test -- --run`
-- Result: pending.
+- Result: pass (`13 passed test files, 31 passed tests`). Note: one React `act(...)` warning remains in `AdminRoomEditorPage.test.tsx`.
 
 ### Manual smoke checks
-- Admin login (`/admin/login`): pending.
-- Create two rooms and separate prompts/models: pending.
-- Room gallery/hash isolation: pending.
+- Admin login (`/admin/login`): pass.
+  - UI route rendered via Playwright/DevTools on `http://127.0.0.1:4173/admin/login`.
+  - Backend login + profile check passed (`POST /api/admin/auth/login`, `GET /api/admin/auth/me`).
+- Create two rooms and separate prompts/models: pass.
+  - Created `room-a` (`openai/gpt-5-image`) and `room-b` (`openai/gpt-5-image-mini`) via admin API.
+- Room gallery/hash isolation: partial pass.
+  - Verified hash isolation: room-a hash is `200`, same hash in room-b is `404`.
+  - End-to-end image generation in both rooms was not re-run manually in this smoke session; automated coverage remains in backend test suite.
