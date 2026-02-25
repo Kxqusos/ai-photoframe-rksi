@@ -1,12 +1,16 @@
 import type {
+  AdminToken,
   GalleryImage,
   JobCreated,
   JobStatus,
   MediaUploadResponse,
   ModelSetting,
   PromptCreate,
+  Room,
   StylePrompt
 } from "../types";
+import { loadAdminToken } from "./auth";
+import { DEFAULT_ROOM_SLUG, buildRoomApiPath, normalizeRoomSlug } from "./roomRouting";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const FALLBACK_STYLES: StylePrompt[] = [
@@ -26,9 +30,30 @@ const AVAILABLE_MODELS = [
   "sourceful/riverflow-v2-fast-preview"
 ];
 
+type RequestHeaders = Record<string, string>;
+
+function requireAdminHeaders(extraHeaders?: RequestHeaders): RequestHeaders {
+  const token = loadAdminToken();
+  if (!token) {
+    throw new Error("Admin token is missing");
+  }
+  return {
+    ...(extraHeaders || {}),
+    Authorization: `Bearer ${token}`
+  };
+}
+
+function roomSlugOrDefault(roomSlug: string): string {
+  return normalizeRoomSlug(roomSlug || DEFAULT_ROOM_SLUG);
+}
+
 export async function listPrompts(): Promise<StylePrompt[]> {
+  return listRoomPrompts(DEFAULT_ROOM_SLUG);
+}
+
+export async function listRoomPrompts(roomSlug: string): Promise<StylePrompt[]> {
   try {
-    const response = await fetch(`${API_BASE}/api/prompts`);
+    const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/prompts")}`);
     if (!response.ok) {
       return FALLBACK_STYLES;
     }
@@ -39,11 +64,15 @@ export async function listPrompts(): Promise<StylePrompt[]> {
 }
 
 export async function createJob(photo: File, promptId: number): Promise<JobCreated> {
+  return createRoomJob(DEFAULT_ROOM_SLUG, photo, promptId);
+}
+
+export async function createRoomJob(roomSlug: string, photo: File, promptId: number): Promise<JobCreated> {
   const formData = new FormData();
   formData.append("photo", photo);
   formData.append("prompt_id", String(promptId));
 
-  const response = await fetch(`${API_BASE}/api/jobs`, {
+  const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/jobs")}`, {
     method: "POST",
     body: formData
   });
@@ -63,8 +92,22 @@ export async function getJobStatus(jobId: number): Promise<JobStatus> {
   return (await response.json()) as JobStatus;
 }
 
+export async function getRoomJobStatus(roomSlug: string, jpgHash: string): Promise<JobStatus> {
+  const response = await fetch(
+    `${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/hash/${encodeURIComponent(jpgHash)}`)}`
+  );
+  if (!response.ok) {
+    throw new Error("Failed to fetch generation status");
+  }
+  return (await response.json()) as JobStatus;
+}
+
 export async function listGalleryResults(): Promise<GalleryImage[]> {
-  const response = await fetch(`${API_BASE}/api/jobs/gallery`);
+  return listRoomGalleryResults(DEFAULT_ROOM_SLUG);
+}
+
+export async function listRoomGalleryResults(roomSlug: string): Promise<GalleryImage[]> {
+  const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/jobs/gallery")}`);
   if (!response.ok) {
     throw new Error("Failed to fetch gallery images");
   }
@@ -150,4 +193,124 @@ export async function deletePrompt(promptId: number): Promise<void> {
   if (!response.ok) {
     throw new Error("Failed to delete style prompt");
   }
+}
+
+export async function adminLogin(username: string, password: string): Promise<AdminToken> {
+  const response = await fetch(`${API_BASE}/api/admin/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ username, password })
+  });
+  if (!response.ok) {
+    throw new Error("Failed to sign in");
+  }
+  return (await response.json()) as AdminToken;
+}
+
+export async function listRooms(): Promise<Room[]> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms`, {
+    headers: requireAdminHeaders()
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch rooms");
+  }
+  return (await response.json()) as Room[];
+}
+
+export async function createRoom(payload: Omit<Room, "id">): Promise<Room> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms`, {
+    method: "POST",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create room");
+  }
+  return (await response.json()) as Room;
+}
+
+export async function updateRoom(roomId: number, payload: Omit<Room, "id">): Promise<Room> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}`, {
+    method: "PUT",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("Failed to update room");
+  }
+  return (await response.json()) as Room;
+}
+
+export async function updateRoomModel(roomId: number, modelName: string): Promise<Room> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}/model`, {
+    method: "PUT",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ model_name: modelName })
+  });
+  if (!response.ok) {
+    throw new Error("Failed to update room model");
+  }
+  return (await response.json()) as Room;
+}
+
+export async function listRoomAdminPrompts(roomId: number): Promise<StylePrompt[]> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}/prompts`, {
+    headers: requireAdminHeaders()
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch room prompts");
+  }
+  return (await response.json()) as StylePrompt[];
+}
+
+export async function createRoomAdminPrompt(roomId: number, payload: PromptCreate): Promise<StylePrompt> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}/prompts`, {
+    method: "POST",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create room prompt");
+  }
+  return (await response.json()) as StylePrompt;
+}
+
+export async function deleteRoomAdminPrompt(roomId: number, promptId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}/prompts/${promptId}`, {
+    method: "DELETE",
+    headers: requireAdminHeaders()
+  });
+  if (!response.ok) {
+    throw new Error("Failed to delete room prompt");
+  }
+}
+
+export async function uploadRoomPromptPreview(roomId: number, file: File): Promise<MediaUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}/media/prompt-preview`, {
+    method: "POST",
+    headers: requireAdminHeaders(),
+    body: formData
+  });
+  if (!response.ok) {
+    throw new Error("Failed to upload room preview image");
+  }
+  return (await response.json()) as MediaUploadResponse;
+}
+
+export async function uploadRoomPromptIcon(roomId: number, file: File): Promise<MediaUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}/media/prompt-icon`, {
+    method: "POST",
+    headers: requireAdminHeaders(),
+    body: formData
+  });
+  if (!response.ok) {
+    throw new Error("Failed to upload room icon image");
+  }
+  return (await response.json()) as MediaUploadResponse;
 }
