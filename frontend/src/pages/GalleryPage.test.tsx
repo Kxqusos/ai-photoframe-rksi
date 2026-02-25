@@ -91,7 +91,7 @@ test("keeps auto scroll moving when browser stores scrollTop as integer", async 
     await Promise.resolve();
   });
 
-  const container = screen.getByLabelText("gallery auto scroll");
+  const container = screen.getByLabelText("автопрокрутка галереи");
   const track = container.querySelector(".gallery-track");
   expect(track).not.toBeNull();
 
@@ -134,7 +134,7 @@ test("renders gallery without title header and keeps auto-scroll container", asy
   });
 
   expect(screen.queryByRole("heading", { name: "Галерея" })).not.toBeInTheDocument();
-  expect(screen.getByLabelText("gallery auto scroll")).toBeInTheDocument();
+  expect(screen.getByLabelText("автопрокрутка галереи")).toBeInTheDocument();
 });
 
 test("applies mixed size variants to gallery cards", async () => {
@@ -188,7 +188,7 @@ test("reshuffles photos on cycle boundary without duplicating cards", async () =
     await Promise.resolve();
   });
 
-  const container = screen.getByLabelText("gallery auto scroll");
+  const container = screen.getByLabelText("автопрокрутка галереи");
   const track = container.querySelector(".gallery-track");
   expect(track).not.toBeNull();
 

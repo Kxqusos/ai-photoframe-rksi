@@ -93,7 +93,7 @@ export function GalleryPage() {
         if (!active) {
           return;
         }
-        setError(cause instanceof Error ? cause.message : "Failed to load gallery");
+        setError(cause instanceof Error ? cause.message : "Не удалось загрузить галерею");
       }
     }
 
@@ -159,7 +159,7 @@ export function GalleryPage() {
 
   return (
     <main className="page gallery-page">
-      <section className="gallery-scroll" ref={scrollRef} aria-label="gallery auto scroll">
+      <section className="gallery-scroll" ref={scrollRef} aria-label="автопрокрутка галереи">
         {error ? <p role="alert">{error}</p> : null}
         {images.length === 0 && !error ? <p className="gallery-empty">Пока нет изображений.</p> : null}
         {displayImages.length > 0 ? (

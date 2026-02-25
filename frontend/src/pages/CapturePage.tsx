@@ -8,6 +8,7 @@ import type { StylePrompt } from "../types";
 export function CapturePage() {
   const [styles, setStyles] = useState<StylePrompt[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -87,7 +88,7 @@ export function CapturePage() {
     setIsGenerating(true);
     try {
       const job = await createJob(capturedPhoto, selectedId);
-      window.location.assign(`/result?jobId=${job.id}`);
+      window.location.assign(`/result/${job.jpg_hash}`);
     } catch {
       setIsGenerating(false);
     }
@@ -96,6 +97,7 @@ export function CapturePage() {
   function onStyleSelect(styleId: number) {
     setSelectedId(styleId);
     writeStoredStyleId(styleId);
+    setIsStyleMenuOpen(false);
   }
 
   function capturePhoto() {
@@ -150,7 +152,11 @@ export function CapturePage() {
   }
 
   return (
-    <main className="capture-screen" aria-label="camera preview">
+    <main className="capture-screen" aria-label="предпросмотр камеры">
+      <header className="capture-screen__intro">
+        <h1 className="capture-screen__headline">Создайте стильный снимок</h1>
+        <p className="capture-screen__subtitle">Выберите стиль и сделайте фото без спешки</p>
+      </header>
       <section className="capture-screen__preview" data-testid="camera-preview">
         <video ref={videoRef} className="capture-screen__video" autoPlay playsInline muted />
         {countdown !== null ? (
@@ -170,34 +176,71 @@ export function CapturePage() {
         </div>
       </section>
       <section className="capture-screen__styles-zone">
-        <aside className="capture-screen__styles-panel" aria-label="style selection">
-          <p className="capture-screen__styles-title">Стили</p>
-          {styles.length === 0 ? <p className="capture-screen__styles-empty">Стили загружаются...</p> : null}
-          <div className="capture-screen__styles-list">
-            {styles.map((style) => (
-              <button
-                key={style.id}
-                type="button"
-                className={`capture-style-item${style.id === selectedId ? " is-selected" : ""}`}
-                onClick={() => onStyleSelect(style.id)}
-                aria-pressed={style.id === selectedId}
-                disabled={isGenerating}
-              >
-                <img
-                  src={style.preview_image_url}
-                  alt={`${style.name} preview`}
-                  width={92}
-                  height={62}
-                  className="capture-style-item__preview"
-                />
-                <span className="capture-style-item__meta">
-                  <span className="capture-style-item__name">{style.name}</span>
-                  <span className="capture-style-item__description">{style.description}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </aside>
+        <div className="capture-screen__menu">
+          <button
+            type="button"
+            className={`capture-screen__menu-button${isStyleMenuOpen ? " is-open" : ""}`}
+            aria-label="Открыть меню стилей"
+            aria-expanded={isStyleMenuOpen}
+            aria-controls="styles-dropdown-menu"
+            onClick={() => setIsStyleMenuOpen((current) => !current)}
+            disabled={isGenerating}
+          >
+            <span className="capture-screen__menu-icon" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
+
+          {isStyleMenuOpen ? (
+            <aside
+              id="styles-dropdown-menu"
+              className="capture-screen__styles-panel capture-screen__styles-panel--dropdown"
+              aria-label="меню выбора стиля"
+            >
+              <div className="capture-screen__styles-header">
+                <p className="capture-screen__styles-title">Стили</p>
+              </div>
+              <p className="capture-screen__styles-hint">Выберите стиль перед съемкой</p>
+              {styles.length === 0 ? <p className="capture-screen__styles-empty">Стили загружаются...</p> : null}
+              <div className="capture-screen__styles-list">
+                {styles.map((style) => (
+                  <button
+                    key={style.id}
+                    type="button"
+                    className={`capture-style-item${style.id === selectedId ? " is-selected" : ""}`}
+                    onClick={() => onStyleSelect(style.id)}
+                    aria-pressed={style.id === selectedId}
+                    disabled={isGenerating}
+                  >
+                    <img
+                      src={style.preview_image_url}
+                      alt={`${style.name} превью`}
+                      width={112}
+                      height={78}
+                      className="capture-style-item__preview capture-style-item__preview--fit"
+                    />
+                    <span className="capture-style-item__meta">
+                      <span className="capture-style-item__name-row">
+                        <span className="capture-style-item__name">{style.name}</span>
+                        {style.id === selectedId ? (
+                          <span className="capture-style-item__selected-badge">Выбран</span>
+                        ) : null}
+                      </span>
+                      <span
+                        className="capture-style-item__description capture-style-item__description--expanded"
+                        lang="ru"
+                      >
+                        {style.description}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </aside>
+          ) : null}
+        </div>
       </section>
       <canvas ref={canvasRef} hidden />
     </main>

@@ -42,7 +42,7 @@ test("creates prompt with name, description, prompt text, preview and icon", asy
 
   render(<SettingsPage />);
 
-  await screen.findByText("Settings");
+  await screen.findByText("Настройки");
 
   fireEvent.change(screen.getByLabelText(/название/i), { target: { value: "Watercolor" } });
   fireEvent.change(screen.getByLabelText(/описание/i), { target: { value: "Painterly style" } });

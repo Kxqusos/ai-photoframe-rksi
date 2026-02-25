@@ -4,31 +4,36 @@ import { getJobStatus } from "../lib/api";
 import type { JobStatus } from "../types";
 
 type Props = {
-  jobId?: number;
+  jpgHash?: string;
 };
 
-function resolveJobId(provided?: number): number | null {
-  if (typeof provided === "number" && Number.isFinite(provided)) {
+function resolveJpgHash(provided?: string): string | null {
+  const pattern = /^[0-9a-f]{16}$/;
+
+  if (typeof provided === "string" && pattern.test(provided)) {
     return provided;
   }
 
-  const fromQuery = new URLSearchParams(window.location.search).get("jobId");
-  if (!fromQuery) {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  const value = Number(fromQuery);
-  return Number.isFinite(value) ? value : null;
+  const match = window.location.pathname.match(/^\/result\/([0-9a-f]{16})$/i);
+  if (!match) {
+    return null;
+  }
+
+  return match[1].toLowerCase();
 }
 
-export function ResultPage({ jobId: providedJobId }: Props) {
-  const jobId = useMemo(() => resolveJobId(providedJobId), [providedJobId]);
+export function ResultPage({ jpgHash: providedJpgHash }: Props) {
+  const jpgHash = useMemo(() => resolveJpgHash(providedJpgHash), [providedJpgHash]);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
-    if (jobId === null) {
-      setError("jobId is required");
+    if (jpgHash === null) {
+      setError("Требуется параметр jpg_hash");
       return;
     }
 
@@ -36,7 +41,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
 
     async function poll() {
       try {
-        const status = await getJobStatus(jobId);
+        const status = await getJobStatus(jpgHash);
         if (cancelled) {
           return;
         }
@@ -45,7 +50,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
         if (cancelled) {
           return;
         }
-        setError(cause instanceof Error ? cause.message : "Failed to get job status");
+        setError(cause instanceof Error ? cause.message : "Не удалось получить статус генерации");
       }
     }
 
@@ -56,7 +61,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [jobId]);
+  }, [jpgHash]);
 
   if (error) {
     return <p role="alert">{error}</p>;
@@ -79,7 +84,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
             <h1>Результат</h1>
             <p className="result-subtitle">Ваше изображение готово. Сохраните его на телефон через QR-код.</p>
             <div className="result-media">
-              <img className="result-photo" src={job.result_url} alt="generated photo" />
+              <img className="result-photo" src={job.result_url} alt="сгенерированное фото" />
             </div>
           </section>
 
@@ -90,7 +95,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
             <h2>Сканируйте QR-код</h2>
             <p className="result-download-hint">Откройте ссылку с телефона, чтобы скачать фото в полном размере.</p>
             <a href={job.download_url} className="result-qr-link" aria-label="Скачать фото">
-              <img className="result-qr" src={job.qr_url} alt="download qr" width={220} />
+              <img className="result-qr" src={job.qr_url} alt="qr-код для скачивания" width={220} />
             </a>
           </section>
         </div>
@@ -99,7 +104,7 @@ export function ResultPage({ jobId: providedJobId }: Props) {
   }
 
   if (job?.status === "error") {
-    return <p role="alert">{job.error_message || "Generation failed"}</p>;
+    return <p role="alert">{job.error_message || "Генерация завершилась с ошибкой"}</p>;
   }
 
   return (
