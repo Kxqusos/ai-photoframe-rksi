@@ -92,14 +92,25 @@ export async function getJobStatus(jobId: number): Promise<JobStatus> {
   return (await response.json()) as JobStatus;
 }
 
-export async function getRoomJobStatus(roomSlug: string, jpgHash: string): Promise<JobStatus> {
-  const response = await fetch(
-    `${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/hash/${encodeURIComponent(jpgHash)}`)}`
-  );
-  if (!response.ok) {
+export async function getRoomJobStatus(roomSlug: string, jobRef: string): Promise<JobStatus> {
+  const encoded = encodeURIComponent(jobRef);
+  const byIdResponse = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/${encoded}`)}`);
+  if (byIdResponse.ok) {
+    return (await byIdResponse.json()) as JobStatus;
+  }
+
+  // Backward compatibility: support result URLs that still pass qr-hash in pathname.
+  if (byIdResponse.status !== 404 && byIdResponse.status !== 422) {
     throw new Error("Failed to fetch generation status");
   }
-  return (await response.json()) as JobStatus;
+
+  const byHashResponse = await fetch(
+    `${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/hash/${encoded}`)}`
+  );
+  if (!byHashResponse.ok) {
+    throw new Error("Failed to fetch generation status");
+  }
+  return (await byHashResponse.json()) as JobStatus;
 }
 
 export async function listGalleryResults(): Promise<GalleryImage[]> {

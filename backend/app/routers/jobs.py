@@ -39,17 +39,20 @@ def _run_generation_in_background(job_id: int) -> None:
         logger.exception("Background generation crashed for job %s", job_id)
 
 
-def _to_job_status(job: object) -> JobStatusOut:
+def _to_job_status(job: object, *, room_slug: str | None = None) -> JobStatusOut:
     if job.status == "completed":
         if not job.qr_hash:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job qr hash is not ready")
         download_url = f"/qr/{job.qr_hash}"
+        qr_url = f"/api/jobs/{job.id}/qr"
+        if room_slug:
+            qr_url = f"/api/rooms/{room_slug}/jobs/{job.id}/qr"
         return JobStatusOut(
             id=job.id,
             status=job.status,
             result_url=download_url,
             download_url=download_url,
-            qr_url=f"/api/jobs/{job.id}/qr",
+            qr_url=qr_url,
             error_message=job.error_message,
         )
     return JobStatusOut(id=job.id, status=job.status, error_message=job.error_message)
@@ -146,7 +149,7 @@ def get_job_status_by_hash_for_room(room_slug: str, jpg_hash: str, db: Session =
     job = get_job_by_qr_hash(db, jpg_hash)
     if job is None or job.room_id != room.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
-    return _to_job_status(job)
+    return _to_job_status(job, room_slug=room.slug)
 
 
 @router.get("/{job_id}", response_model=JobStatusOut)
@@ -158,11 +161,34 @@ def get_job_status(job_id: int, db: Session = Depends(get_db)) -> JobStatusOut:
     return _to_job_status(job)
 
 
+@room_router.get("/{job_id}", response_model=JobStatusOut)
+def get_job_status_for_room(room_slug: str, job_id: int, db: Session = Depends(get_db)) -> JobStatusOut:
+    room = _resolve_room_or_404(db, room_slug)
+    job = get_job_or_404(db, job_id)
+    if job is None or job.room_id != room.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+    return _to_job_status(job, room_slug=room.slug)
+
+
 @router.get("/{job_id}/qr")
 def download_qr(job_id: int, request: Request, db: Session = Depends(get_db)) -> Response:
     default_room = get_or_create_default_room(db)
     job = get_completed_job_or_404(db, job_id)
     if job is None or job.room_id != default_room.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not completed")
+    if not job.qr_hash:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job qr hash is not ready")
+
+    target_url = _build_qr_target_url(request, job.qr_hash)
+    png_bytes = build_qr_png(target_url)
+    return Response(content=png_bytes, media_type="image/png")
+
+
+@room_router.get("/{job_id}/qr")
+def download_qr_for_room(job_id: int, room_slug: str, request: Request, db: Session = Depends(get_db)) -> Response:
+    room = _resolve_room_or_404(db, room_slug)
+    job = get_completed_job_or_404(db, job_id)
+    if job is None or job.room_id != room.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not completed")
     if not job.qr_hash:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job qr hash is not ready")

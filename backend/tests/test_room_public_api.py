@@ -145,3 +145,30 @@ def test_room_hash_endpoint_enforces_room_ownership() -> None:
 
     response = client.get("/api/rooms/room-b/jobs/hash/cccccccccccccccc")
     assert response.status_code == 404
+
+
+def test_room_job_status_by_id_returns_room_scoped_status() -> None:
+    _reset_db()
+    ids = _seed_rooms_and_prompts()
+    client = TestClient(app)
+
+    with SessionLocal() as db:
+        job = GenerationJob(
+            prompt_id=ids["prompt_a_id"],
+            room_id=ids["room_a_id"],
+            status="completed",
+            qr_hash="dddddddddddddddd",
+            result_path="/tmp/job-d.jpg",
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        job_id = job.id
+
+    response = client.get(f"/api/rooms/room-a/jobs/{job_id}")
+    assert response.status_code == 200
+    assert response.json()["id"] == job_id
+    assert response.json()["qr_url"] == f"/api/rooms/room-a/jobs/{job_id}/qr"
+
+    wrong_room = client.get(f"/api/rooms/room-b/jobs/{job_id}")
+    assert wrong_room.status_code == 404
