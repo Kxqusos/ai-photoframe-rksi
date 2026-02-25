@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminLoginPage } from "./pages/AdminLoginPage";
 import { AdminRoomEditorPage } from "./pages/AdminRoomEditorPage";
+import { PublicRoomMenu } from "./components/PublicRoomMenu";
 import { CapturePage } from "./pages/CapturePage";
 import { GalleryPage } from "./pages/GalleryPage";
 import { ResultPage } from "./pages/ResultPage";
@@ -45,14 +46,34 @@ export default function App() {
 
   const route = resolvePublicRoute(pathname);
   if (route?.page === "result") {
-    return <ResultPage roomSlug={route.roomSlug} jpgHash={route.jpgHash} />;
+    return (
+      <>
+        <PublicRoomMenu currentRoomSlug={route.roomSlug} />
+        <ResultPage roomSlug={route.roomSlug} jpgHash={route.jpgHash} />
+      </>
+    );
   }
   if (route?.page === "gallery") {
-    return <GalleryPage roomSlug={route.roomSlug} />;
+    return (
+      <>
+        <PublicRoomMenu currentRoomSlug={route.roomSlug} />
+        <GalleryPage roomSlug={route.roomSlug} />
+      </>
+    );
   }
   if (route?.page === "capture") {
-    return <CapturePage roomSlug={route.roomSlug} />;
+    return (
+      <>
+        <PublicRoomMenu currentRoomSlug={route.roomSlug} />
+        <CapturePage roomSlug={route.roomSlug} />
+      </>
+    );
   }
 
-  return <CapturePage roomSlug="main" />;
+  return (
+    <>
+      <PublicRoomMenu currentRoomSlug="main" />
+      <CapturePage roomSlug="main" />
+    </>
+  );
 }

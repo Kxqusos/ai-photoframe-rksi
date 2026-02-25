@@ -20,6 +20,12 @@ export type Room = {
   is_active: boolean;
 };
 
+export type PublicRoom = {
+  id: number;
+  slug: string;
+  name: string;
+};
+
 export type AdminToken = {
   access_token: string;
   token_type: string;

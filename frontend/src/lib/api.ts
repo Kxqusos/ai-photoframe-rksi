@@ -5,6 +5,7 @@ import type {
   JobStatus,
   MediaUploadResponse,
   ModelSetting,
+  PublicRoom,
   PromptCreate,
   Room,
   StylePrompt
@@ -61,6 +62,14 @@ export async function listRoomPrompts(roomSlug: string): Promise<StylePrompt[]> 
   } catch {
     return FALLBACK_STYLES;
   }
+}
+
+export async function listPublicRooms(): Promise<PublicRoom[]> {
+  const response = await fetch(`${API_BASE}/api/rooms`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch rooms");
+  }
+  return (await response.json()) as PublicRoom[];
 }
 
 export async function createJob(photo: File, promptId: number): Promise<JobCreated> {

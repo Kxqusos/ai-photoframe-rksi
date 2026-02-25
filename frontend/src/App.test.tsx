@@ -24,6 +24,9 @@ vi.mock("./pages/AdminDashboardPage", () => ({
 vi.mock("./pages/AdminRoomEditorPage", () => ({
   AdminRoomEditorPage: () => <div>admin-room-editor-page</div>
 }));
+vi.mock("./components/PublicRoomMenu", () => ({
+  PublicRoomMenu: () => <div>public-room-menu</div>
+}));
 
 test("renders gallery page for /gallery pathname", () => {
   window.history.pushState({}, "", "/room-a/gallery");
@@ -49,6 +52,15 @@ test("renders admin login page for /admin/login", () => {
   render(<App />);
 
   expect(screen.getByText("admin-login-page")).toBeInTheDocument();
+});
+
+test("renders public room menu on public routes", () => {
+  window.history.pushState({}, "", "/room-a");
+
+  render(<App />);
+
+  expect(screen.getByText("public-room-menu")).toBeInTheDocument();
+  expect(screen.getByText("capture-page")).toBeInTheDocument();
 });
 
 test("updates rendered route after navigation event", async () => {

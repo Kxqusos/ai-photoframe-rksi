@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from app.auth import router as admin_auth_router
 from app.config import configure_logging, settings
 from app.db import init_db
-from app.routers import admin, jobs, media, prompts, settings as settings_router
+from app.routers import admin, jobs, media, prompts, rooms, settings as settings_router
 
 app = FastAPI(title=settings.app_name)
 
@@ -25,6 +25,7 @@ async def health() -> dict[str, str]:
 app.include_router(settings_router.router)
 app.include_router(admin_auth_router)
 app.include_router(admin.router)
+app.include_router(rooms.router)
 app.include_router(prompts.router)
 app.include_router(prompts.room_router)
 app.include_router(media.router)

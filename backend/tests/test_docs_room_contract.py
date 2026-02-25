@@ -7,6 +7,7 @@ def test_docs_cover_room_and_admin_contract() -> None:
     backend_env = Path(".env.example").read_text(encoding="utf-8")
     frontend_env = Path("../frontend/.env.example").read_text(encoding="utf-8")
 
+    assert "GET /api/rooms" in api_contract
     assert "GET /api/rooms/{slug}/prompts" in api_contract
     assert "POST /api/rooms/{slug}/jobs" in api_contract
     assert "GET /api/rooms/{slug}/jobs/gallery" in api_contract

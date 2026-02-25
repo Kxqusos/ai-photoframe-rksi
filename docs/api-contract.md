@@ -4,6 +4,7 @@
 - `GET /api/health` -> `{ "status": "ok" }`
 
 ## Public Room API (recommended)
+- `GET /api/rooms` -> active public rooms (`id`, `slug`, `name`) for room selector menu.
 - `GET /api/rooms/{slug}/prompts` -> prompt styles for active room.
 - `POST /api/rooms/{slug}/jobs` (multipart: `photo`, `prompt_id`) -> `{ "id": number, "status": "processing" }`
 - `GET /api/rooms/{slug}/jobs/hash/{jpg_hash}` -> room-scoped job status.

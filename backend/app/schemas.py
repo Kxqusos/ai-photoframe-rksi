@@ -14,6 +14,14 @@ class RoomOut(RoomCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublicRoomOut(BaseModel):
+    id: int
+    slug: str
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class RoomUpdate(BaseModel):
     slug: str
     name: str

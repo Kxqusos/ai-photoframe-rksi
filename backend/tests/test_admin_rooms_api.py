@@ -19,6 +19,7 @@ def _configure_admin_credentials(monkeypatch) -> tuple[str, str]:
     password_hash = password_context.hash(password)
 
     monkeypatch.setattr(settings, "admin_username", username)
+    monkeypatch.setattr(settings, "admin_password", "")
     monkeypatch.setattr(settings, "admin_password_hash", password_hash)
     monkeypatch.setattr(settings, "jwt_secret", "test-jwt-secret-with-at-least-32-bytes")
     monkeypatch.setattr(settings, "jwt_expire_minutes", 60)
