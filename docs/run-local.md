@@ -14,6 +14,11 @@
    - Generated output is JPEG by default (`OPENROUTER_RESULT_FORMAT=jpeg`, quality via `OPENROUTER_JPEG_QUALITY`).
    - Generated files are stored for `RESULT_RETENTION_DAYS` and then pruned.
    - Backend writes logs to `backend/logs/backend.log` by default (`LOG_FILE_PATH`).
+   - JWT/admin setup:
+     - `JWT_SECRET` must be non-default in non-local environments.
+     - `ADMIN_USERNAME` and `ADMIN_PASSWORD` configure single admin account.
+     - `ADMIN_PASSWORD_HASH` is optional legacy fallback (used only when `ADMIN_PASSWORD` is empty).
+     - `DEFAULT_PUBLIC_ROOM_SLUG` controls which room legacy wrappers (`/api/jobs`, `/api/prompts`) point to.
 3. `uv run uvicorn app.main:app --reload`
 
 Backend starts at `http://127.0.0.1:8000`.
@@ -27,8 +32,10 @@ Backend starts at `http://127.0.0.1:8000`.
 Frontend starts at `http://127.0.0.1:5173`.
 
 ## End-to-end check
-1. Open `/settings`, choose model, add style prompt with preview + icon.
-2. Open `/`, upload a photo and pick style.
-3. Wait for result page.
-4. Verify QR image loads and encoded URL points to `/qr/{qr_hash}`.
-5. Open `/qr/{qr_hash}` and confirm the file downloads.
+1. Open `/admin/login`, sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+2. In `/admin`, create two rooms (for example `room-a`, `room-b`) with different models.
+3. In each room editor, create prompts and upload preview/icon media.
+4. Open `/main` (or another room slug), upload a photo, and generate an image.
+5. Open `/main/gallery` and verify only that room's results are shown.
+6. Resolve status via `GET /api/rooms/main/jobs/hash/{jpg_hash}` and confirm room scoping.
+7. Verify `/qr/{qr_hash}` downloads generated file.

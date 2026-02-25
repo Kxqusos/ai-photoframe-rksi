@@ -3,11 +3,16 @@ name = "ai-photoframe-backend"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+  "alembic>=1.16.5",
+  "bcrypt<5",
   "fastapi>=0.116.0",
   "uvicorn>=0.35.0",
   "sqlalchemy>=2.0.35",
   "pydantic>=2.9.2",
   "openai>=1.54.0",
+  "passlib[bcrypt]>=1.7.4",
+  "pyjwt>=2.10.1",
+  "psycopg[binary]>=3.2.10",
   "python-multipart>=0.0.9",
   "qrcode>=8.2",
   "pillow>=11.3.0"

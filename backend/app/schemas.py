@@ -1,6 +1,38 @@
 from pydantic import BaseModel, ConfigDict
 
 
+class RoomCreate(BaseModel):
+    slug: str
+    name: str
+    model_name: str
+    is_active: bool = True
+
+
+class RoomOut(RoomCreate):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublicRoomOut(BaseModel):
+    id: int
+    slug: str
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RoomUpdate(BaseModel):
+    slug: str
+    name: str
+    model_name: str
+    is_active: bool
+
+
+class RoomModelUpdate(BaseModel):
+    model_name: str
+
+
 class PromptCreate(BaseModel):
     name: str
     description: str

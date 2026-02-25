@@ -1,4 +1,8 @@
-const STYLE_STORAGE_KEY = "ai_photoframe.selected_style_id";
+import { DEFAULT_ROOM_SLUG, normalizeRoomSlug } from "./roomRouting";
+
+function styleStorageKey(roomSlug: string): string {
+  return `ai_photoframe.selected_style_id.${normalizeRoomSlug(roomSlug)}`;
+}
 
 function parseStyleId(raw: string | null): number | null {
   if (!raw) {
@@ -11,18 +15,18 @@ function parseStyleId(raw: string | null): number | null {
   return value;
 }
 
-export function readStoredStyleId(): number | null {
+export function readStoredStyleId(roomSlug: string = DEFAULT_ROOM_SLUG): number | null {
   if (typeof window === "undefined") {
     return null;
   }
-  return parseStyleId(window.localStorage.getItem(STYLE_STORAGE_KEY));
+  return parseStyleId(window.localStorage.getItem(styleStorageKey(roomSlug)));
 }
 
-export function writeStoredStyleId(styleId: number): void {
+export function writeStoredStyleId(styleId: number, roomSlug: string = DEFAULT_ROOM_SLUG): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(STYLE_STORAGE_KEY, String(styleId));
+  window.localStorage.setItem(styleStorageKey(roomSlug), String(styleId));
 }
 
 export function readStyleIdFromQuery(search: string): number | null {

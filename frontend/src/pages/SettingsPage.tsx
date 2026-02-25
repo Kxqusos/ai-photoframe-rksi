@@ -45,7 +45,7 @@ export function SettingsPage() {
     }
 
     load().catch((cause) => {
-      setError(cause instanceof Error ? cause.message : "Не удалось загрузить настройки");
+      setError(cause instanceof Error ? cause.message : "Failed to load settings");
     });
   }, []);
 
@@ -59,7 +59,7 @@ export function SettingsPage() {
     try {
       await setModel(selectedModel);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось сохранить модель");
+      setError(cause instanceof Error ? cause.message : "Failed to save model");
     } finally {
       setSavingModel(false);
     }
@@ -98,7 +98,7 @@ export function SettingsPage() {
       setPrompts((current) => [...current, created]);
       setFormValues(EMPTY_FORM);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось сохранить стиль");
+      setError(cause instanceof Error ? cause.message : "Failed to save prompt");
     } finally {
       setSavingPrompt(false);
     }
@@ -111,7 +111,7 @@ export function SettingsPage() {
       await deletePrompt(promptId);
       setPrompts((current) => current.filter((item) => item.id !== promptId));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось удалить стиль");
+      setError(cause instanceof Error ? cause.message : "Failed to delete prompt");
     } finally {
       setDeletingPromptIds((current) => current.filter((id) => id !== promptId));
     }
@@ -119,10 +119,10 @@ export function SettingsPage() {
 
   return (
     <main className="page">
-      <h1>Настройки</h1>
+      <h1>Settings</h1>
 
       <section className="panel form-grid">
-        <h2>Модель OpenRouter</h2>
+        <h2>OpenRouter model</h2>
         <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
           {models.map((modelName) => (
             <option key={modelName} value={modelName}>
@@ -148,7 +148,7 @@ export function SettingsPage() {
           <article key={item.id} className="prompt-item">
             <h3>{item.name}</h3>
             <p>{item.description}</p>
-            <img src={item.preview_image_url} alt={`${item.name} превью`} width={120} height={80} />
+            <img src={item.preview_image_url} alt={`${item.name} preview`} width={120} height={80} />
             <div className="prompt-item__actions">
               <button
                 type="button"

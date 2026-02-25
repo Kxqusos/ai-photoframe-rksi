@@ -12,6 +12,25 @@ export type JobCreated = {
   status: string;
 };
 
+export type Room = {
+  id: number;
+  slug: string;
+  name: string;
+  model_name: string;
+  is_active: boolean;
+};
+
+export type PublicRoom = {
+  id: number;
+  slug: string;
+  name: string;
+};
+
+export type AdminToken = {
+  access_token: string;
+  token_type: string;
+};
+
 export type JobStatus = {
   id: number;
   status: "processing" | "completed" | "error" | string;

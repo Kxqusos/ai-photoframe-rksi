@@ -17,15 +17,13 @@ export function StyleCard({ style, selected, onSelect }: Props) {
     >
       <img
         src={style.preview_image_url}
-        alt={`${style.name} превью`}
+        alt={`${style.name} preview`}
         width={140}
         height={90}
         className="style-card__preview"
       />
       <h3 className="style-card__title">{style.name}</h3>
-      <p className="style-card__description" lang="ru">
-        {style.description}
-      </p>
+      <p className="style-card__description">{style.description}</p>
     </button>
   );
 }

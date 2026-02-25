@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
-import { listGalleryResults } from "../lib/api";
+import { listRoomGalleryResults } from "../lib/api";
+import { normalizeRoomSlug } from "../lib/roomRouting";
 import type { GalleryImage } from "../types";
 
 const POLL_INTERVAL_MS = 5000;
@@ -70,7 +71,12 @@ function syncDisplayImages(current: GalleryImage[], incoming: GalleryImage[]): G
   return current;
 }
 
-export function GalleryPage() {
+type Props = {
+  roomSlug: string;
+};
+
+export function GalleryPage({ roomSlug }: Props) {
+  const resolvedRoomSlug = normalizeRoomSlug(roomSlug);
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [displayImages, setDisplayImages] = useState<GalleryImage[]>([]);
   const [error, setError] = useState<string>("");
@@ -82,7 +88,7 @@ export function GalleryPage() {
 
     async function load() {
       try {
-        const rows = await listGalleryResults();
+        const rows = await listRoomGalleryResults(resolvedRoomSlug);
         if (!active) {
           return;
         }
@@ -106,7 +112,7 @@ export function GalleryPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [resolvedRoomSlug]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -159,7 +165,7 @@ export function GalleryPage() {
 
   return (
     <main className="page gallery-page">
-      <section className="gallery-scroll" ref={scrollRef} aria-label="автопрокрутка галереи">
+      <section className="gallery-scroll" ref={scrollRef} aria-label="gallery auto scroll">
         {error ? <p role="alert">{error}</p> : null}
         {images.length === 0 && !error ? <p className="gallery-empty">Пока нет изображений.</p> : null}
         {displayImages.length > 0 ? (

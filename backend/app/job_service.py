@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app import openrouter_client
-from app.models import GenerationJob, ModelSetting, Prompt
+from app.models import GenerationJob, ModelSetting, Prompt, Room
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 STORAGE_ROOT = BACKEND_ROOT / "storage"
@@ -23,6 +23,7 @@ SOURCE_DIR.mkdir(parents=True, exist_ok=True)
 RESULT_DIR.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_MODEL_NAME = "openai/gpt-5-image"
+DEFAULT_PUBLIC_ROOM_SLUG = "main"
 LEGACY_MODEL_NAME = "google/gemini-2.5-flash-image-preview"
 LEGACY_OPENAI_MODEL_NAME = "openai/gpt-image-1"
 LEGACY_MINI_MODEL_NAME = "openai/gpt-5-image-mini"
@@ -60,6 +61,12 @@ def _build_filename(job_id: int, suffix: str) -> str:
     return f"job-{job_id}{suffix}"
 
 
+def _build_room_result_dir(room_slug: str) -> Path:
+    path = RESULT_DIR / f"room-{room_slug}"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _generate_qr_hash() -> str:
     return uuid4().hex[:16]
 
@@ -89,7 +96,7 @@ def _prune_result_files() -> None:
     retention_days = _resolve_result_retention_days()
     cutoff_timestamp = time.time() - (retention_days * _SECONDS_PER_DAY)
 
-    files = [path for path in RESULT_DIR.iterdir() if path.is_file()]
+    files = [path for path in RESULT_DIR.rglob("*") if path.is_file()]
     for stale in files:
         try:
             if stale.stat().st_mtime < cutoff_timestamp:
@@ -105,9 +112,13 @@ def _is_gallery_image_file(path: Path) -> bool:
     return path.suffix.lower() in _GALLERY_IMAGE_SUFFIXES
 
 
-def list_gallery_results() -> list[dict[str, Any]]:
+def list_gallery_results(room_slug: str) -> list[dict[str, Any]]:
+    room_dir = RESULT_DIR / f"room-{room_slug}"
+    if not room_dir.exists():
+        return []
+
     items: list[tuple[float, str]] = []
-    for path in RESULT_DIR.iterdir():
+    for path in room_dir.iterdir():
         if not path.is_file() or not _is_gallery_image_file(path):
             continue
         try:
@@ -118,13 +129,13 @@ def list_gallery_results() -> list[dict[str, Any]]:
 
     items.sort(key=lambda item: item[0], reverse=True)
     return [
-        {"name": name, "url": f"/media/results/{quote(name)}", "modified_at": modified_at}
+        {"name": name, "url": f"/media/results/room-{room_slug}/{quote(name)}", "modified_at": modified_at}
         for modified_at, name in items
     ]
 
 
-def create_processing_job(db: Session, *, prompt_id: int, source_bytes: bytes) -> GenerationJob:
-    job = GenerationJob(prompt_id=prompt_id, status="processing")
+def create_processing_job(db: Session, *, prompt_id: int, room_id: int, source_bytes: bytes) -> GenerationJob:
+    job = GenerationJob(prompt_id=prompt_id, room_id=room_id, status="processing")
     db.add(job)
     db.commit()
     db.refresh(job)
@@ -174,7 +185,12 @@ def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
             image_bytes=source_bytes,
         )
 
-        result_path = RESULT_DIR / _build_filename(job.id, _resolve_result_suffix())
+        room = db.get(Room, job.room_id)
+        if room is None:
+            raise ValueError("room not found")
+
+        result_dir = _build_room_result_dir(room.slug)
+        result_path = result_dir / _build_filename(job.id, _resolve_result_suffix())
         result_path.write_bytes(generated)
         _prune_result_files()
 
@@ -208,8 +224,33 @@ def get_completed_job_or_404(db: Session, job_id: int) -> GenerationJob | None:
 
 
 def get_completed_job_by_qr_hash(db: Session, qr_hash: str) -> GenerationJob | None:
-    return (
-        db.query(GenerationJob)
-        .filter(GenerationJob.qr_hash == qr_hash, GenerationJob.status == "completed")
-        .first()
-    )
+    return db.query(GenerationJob).filter(GenerationJob.qr_hash == qr_hash, GenerationJob.status == "completed").first()
+
+
+def get_job_by_qr_hash(db: Session, qr_hash: str) -> GenerationJob | None:
+    return db.query(GenerationJob).filter(GenerationJob.qr_hash == qr_hash).first()
+
+
+def resolve_default_room_slug() -> str:
+    value = os.getenv("DEFAULT_PUBLIC_ROOM_SLUG", DEFAULT_PUBLIC_ROOM_SLUG).strip()
+    return value or DEFAULT_PUBLIC_ROOM_SLUG
+
+
+def get_room_by_slug(db: Session, room_slug: str, *, active_only: bool) -> Room | None:
+    query = db.query(Room).filter(Room.slug == room_slug)
+    if active_only:
+        query = query.filter(Room.is_active.is_(True))
+    return query.first()
+
+
+def get_or_create_default_room(db: Session) -> Room:
+    default_slug = resolve_default_room_slug()
+    room = db.query(Room).filter(Room.slug == default_slug).first()
+    if room is not None:
+        return room
+
+    room = Room(slug=default_slug, name="Main", model_name=DEFAULT_MODEL_NAME, is_active=True)
+    db.add(room)
+    db.commit()
+    db.refresh(room)
+    return room

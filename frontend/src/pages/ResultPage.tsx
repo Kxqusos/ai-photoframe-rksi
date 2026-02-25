@@ -1,39 +1,35 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-import { getJobStatus } from "../lib/api";
+import { getRoomJobStatus } from "../lib/api";
+import { normalizeRoomSlug } from "../lib/roomRouting";
 import type { JobStatus } from "../types";
 
 type Props = {
+  roomSlug: string;
   jpgHash?: string;
 };
 
 function resolveJpgHash(provided?: string): string | null {
-  const pattern = /^[0-9a-f]{16}$/;
-
-  if (typeof provided === "string" && pattern.test(provided)) {
+  if (typeof provided === "string" && provided.trim()) {
     return provided;
   }
 
-  if (typeof window === "undefined") {
+  const fromPath = window.location.pathname.match(/\/result\/([^/]+)\/?$/i)?.[1];
+  if (!fromPath) {
     return null;
   }
-
-  const match = window.location.pathname.match(/^\/result\/([0-9a-f]{16})$/i);
-  if (!match) {
-    return null;
-  }
-
-  return match[1].toLowerCase();
+  return fromPath;
 }
 
-export function ResultPage({ jpgHash: providedJpgHash }: Props) {
+export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {
+  const resolvedRoomSlug = useMemo(() => normalizeRoomSlug(roomSlug), [roomSlug]);
   const jpgHash = useMemo(() => resolveJpgHash(providedJpgHash), [providedJpgHash]);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
     if (jpgHash === null) {
-      setError("Требуется параметр jpg_hash");
+      setError("Не указан идентификатор результата");
       return;
     }
 
@@ -41,7 +37,7 @@ export function ResultPage({ jpgHash: providedJpgHash }: Props) {
 
     async function poll() {
       try {
-        const status = await getJobStatus(jpgHash);
+        const status = await getRoomJobStatus(resolvedRoomSlug, jpgHash);
         if (cancelled) {
           return;
         }
@@ -61,7 +57,7 @@ export function ResultPage({ jpgHash: providedJpgHash }: Props) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [jpgHash]);
+  }, [jpgHash, resolvedRoomSlug]);
 
   if (error) {
     return <p role="alert">{error}</p>;
@@ -72,7 +68,7 @@ export function ResultPage({ jpgHash: providedJpgHash }: Props) {
       window.history.back();
       return;
     }
-    window.location.assign("/");
+    window.location.assign(`/${resolvedRoomSlug}`);
   }
 
   if (job?.status === "completed" && job.result_url && job.qr_url && job.download_url) {
@@ -84,7 +80,7 @@ export function ResultPage({ jpgHash: providedJpgHash }: Props) {
             <h1>Результат</h1>
             <p className="result-subtitle">Ваше изображение готово. Сохраните его на телефон через QR-код.</p>
             <div className="result-media">
-              <img className="result-photo" src={job.result_url} alt="сгенерированное фото" />
+              <img className="result-photo" src={job.result_url} alt="generated photo" />
             </div>
           </section>
 
@@ -95,7 +91,7 @@ export function ResultPage({ jpgHash: providedJpgHash }: Props) {
             <h2>Сканируйте QR-код</h2>
             <p className="result-download-hint">Откройте ссылку с телефона, чтобы скачать фото в полном размере.</p>
             <a href={job.download_url} className="result-qr-link" aria-label="Скачать фото">
-              <img className="result-qr" src={job.qr_url} alt="qr-код для скачивания" width={220} />
+              <img className="result-qr" src={job.qr_url} alt="download qr" width={220} />
             </a>
           </section>
         </div>
@@ -104,7 +100,7 @@ export function ResultPage({ jpgHash: providedJpgHash }: Props) {
   }
 
   if (job?.status === "error") {
-    return <p role="alert">{job.error_message || "Генерация завершилась с ошибкой"}</p>;
+    return <p role="alert">{job.error_message || "Ошибка генерации"}</p>;
   }
 
   return (
