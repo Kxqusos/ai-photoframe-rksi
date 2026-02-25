@@ -31,6 +31,10 @@ class AdminProfileOut(BaseModel):
 def verify_admin_credentials(username: str, password: str) -> bool:
     if not hmac.compare_digest(username, settings.admin_username):
         return False
+
+    if settings.admin_password:
+        return hmac.compare_digest(password, settings.admin_password)
+
     if not settings.admin_password_hash:
         return False
 

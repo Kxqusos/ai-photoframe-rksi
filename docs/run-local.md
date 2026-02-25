@@ -16,16 +16,12 @@
    - Backend writes logs to `backend/logs/backend.log` by default (`LOG_FILE_PATH`).
    - JWT/admin setup:
      - `JWT_SECRET` must be non-default in non-local environments.
-     - `ADMIN_USERNAME` and `ADMIN_PASSWORD_HASH` configure single admin account.
+     - `ADMIN_USERNAME` and `ADMIN_PASSWORD` configure single admin account.
+     - `ADMIN_PASSWORD_HASH` is optional legacy fallback (used only when `ADMIN_PASSWORD` is empty).
      - `DEFAULT_PUBLIC_ROOM_SLUG` controls which room legacy wrappers (`/api/jobs`, `/api/prompts`) point to.
 3. `uv run uvicorn app.main:app --reload`
 
 Backend starts at `http://127.0.0.1:8000`.
-
-### Create admin password hash (bcrypt)
-Use this once and copy output to `ADMIN_PASSWORD_HASH`:
-
-`uv run python -c "from passlib.context import CryptContext; print(CryptContext(schemes=['bcrypt'], deprecated='auto').hash('change-me'))"`
 
 ## Frontend
 1. `cd frontend`
@@ -36,7 +32,7 @@ Use this once and copy output to `ADMIN_PASSWORD_HASH`:
 Frontend starts at `http://127.0.0.1:5173`.
 
 ## End-to-end check
-1. Open `/admin/login`, sign in with `ADMIN_USERNAME` and password that matches `ADMIN_PASSWORD_HASH`.
+1. Open `/admin/login`, sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
 2. In `/admin`, create two rooms (for example `room-a`, `room-b`) with different models.
 3. In each room editor, create prompts and upload preview/icon media.
 4. Open `/main` (or another room slug), upload a photo, and generate an image.

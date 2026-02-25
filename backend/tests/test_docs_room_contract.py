@@ -19,11 +19,12 @@ def test_docs_cover_room_and_admin_contract() -> None:
     assert "PUT /api/admin/rooms/{room_id}/model" in api_contract
 
     assert "ADMIN_USERNAME" in backend_env
-    assert "ADMIN_PASSWORD_HASH" in backend_env
+    assert "ADMIN_PASSWORD" in backend_env
     assert "JWT_SECRET" in backend_env
     assert "JWT_EXPIRE_MINUTES" in backend_env
     assert "DEFAULT_PUBLIC_ROOM_SLUG" in backend_env
 
+    assert "ADMIN_PASSWORD" in run_local
     assert "/main" in run_local
     assert "/admin/login" in run_local
 

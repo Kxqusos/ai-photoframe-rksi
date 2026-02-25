@@ -15,14 +15,8 @@ Set at least these variables in `backend/.env`:
 - `OPENROUTER_API_KEY`
 - `JWT_SECRET`
 - `ADMIN_USERNAME`
-- `ADMIN_PASSWORD_HASH`
+- `ADMIN_PASSWORD`
 - `DEFAULT_PUBLIC_ROOM_SLUG` (usually `main`)
-
-Generate bcrypt hash for admin password:
-```bash
-cd backend
-uv run python -c "from passlib.context import CryptContext; print(CryptContext(schemes=['bcrypt'], deprecated='auto').hash('change-me'))"
-```
 
 Run API:
 ```bash
