@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_admin
 from app.db import get_db
+from app.hash_utils import generate_public_id
 from app.models import Prompt, Room
 from app.routers.media import save_prompt_icon, save_prompt_preview
 from app.schemas import PromptCreate, PromptOut, RoomCreate, RoomModelUpdate, RoomOut, RoomUpdate
@@ -18,6 +19,14 @@ def _get_room_or_404(db: Session, room_id: int) -> Room:
     return room
 
 
+def _generate_unique_room_slug(db: Session) -> str:
+    while True:
+        candidate = generate_public_id()
+        exists = db.query(Room.id).filter(Room.slug == candidate).first()
+        if exists is None:
+            return candidate
+
+
 @router.get("/rooms", response_model=list[RoomOut])
 def list_rooms(db: Session = Depends(get_db)) -> list[Room]:
     return db.query(Room).order_by(Room.id.asc()).all()
@@ -25,11 +34,12 @@ def list_rooms(db: Session = Depends(get_db)) -> list[Room]:
 
 @router.post("/rooms", response_model=RoomOut, status_code=status.HTTP_201_CREATED)
 def create_room(payload: RoomCreate, db: Session = Depends(get_db)) -> Room:
-    existing = db.query(Room).filter(Room.slug == payload.slug).first()
+    slug = payload.slug or _generate_unique_room_slug(db)
+    existing = db.query(Room).filter(Room.slug == slug).first()
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="room slug already exists")
 
-    room = Room(**payload.model_dump())
+    room = Room(**payload.model_dump(exclude={"slug"}), slug=slug)
     db.add(room)
     db.commit()
     db.refresh(room)
@@ -39,11 +49,12 @@ def create_room(payload: RoomCreate, db: Session = Depends(get_db)) -> Room:
 @router.put("/rooms/{room_id}", response_model=RoomOut)
 def update_room(room_id: int, payload: RoomUpdate, db: Session = Depends(get_db)) -> Room:
     room = _get_room_or_404(db, room_id)
-    duplicate = db.query(Room).filter(Room.slug == payload.slug, Room.id != room_id).first()
-    if duplicate is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="room slug already exists")
 
-    room.slug = payload.slug
+    if payload.slug is not None:
+        duplicate = db.query(Room).filter(Room.slug == payload.slug, Room.id != room_id).first()
+        if duplicate is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="room slug already exists")
+        room.slug = payload.slug
     room.name = payload.name
     room.model_name = payload.model_name
     room.is_active = payload.is_active

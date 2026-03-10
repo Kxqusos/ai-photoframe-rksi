@@ -17,9 +17,9 @@ def test_list_public_rooms_returns_only_active_rooms() -> None:
     with SessionLocal() as db:
         db.add_all(
             [
-                Room(slug="main", name="Main", model_name="openai/gpt-5-image", is_active=True),
-                Room(slug="room-a", name="Room A", model_name="openai/gpt-5-image", is_active=True),
-                Room(slug="room-b", name="Room B", model_name="openai/gpt-5-image", is_active=False),
+                Room(slug="ph000000", name="Main", model_name="openai/gpt-5-image", is_active=True),
+                Room(slug="aaaaaaaa", name="Room A", model_name="openai/gpt-5-image", is_active=True),
+                Room(slug="bbbbbbbb", name="Room B", model_name="openai/gpt-5-image", is_active=False),
             ]
         )
         db.commit()
@@ -28,5 +28,5 @@ def test_list_public_rooms_returns_only_active_rooms() -> None:
     assert response.status_code == 200
 
     body = response.json()
-    assert [row["slug"] for row in body] == ["main", "room-a"]
+    assert [row["slug"] for row in body] == ["ph000000", "aaaaaaaa"]
     assert set(body[0].keys()) == {"id", "slug", "name"}

@@ -10,7 +10,7 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-DEFAULT_ROOM_SLUG = "main"
+DEFAULT_ROOM_SLUG = "ph000000"
 DEFAULT_ROOM_NAME = "Main"
 DEFAULT_ROOM_MODEL = "openai/gpt-5-image"
 

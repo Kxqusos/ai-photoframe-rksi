@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.db import Base, SessionLocal, engine
 from app.job_service import DEFAULT_MODEL_NAME, LEGACY_MODEL_NAME, LEGACY_OPENAI_MODEL_NAME
 from app.main import app
-from app.models import GenerationJob
+from app.models import GenerationJob, Room
 
 
 def _reset_db() -> None:
@@ -59,12 +60,13 @@ def test_create_job_and_get_completed_result(monkeypatch) -> None:
     assert created.status_code == 202
 
     body = created.json()
-    assert body["id"] > 0
+    assert isinstance(body["id"], str)
+    assert re.fullmatch(r"[a-z0-9]{8}", body["id"])
     assert body["status"] == "processing"
 
     status_body: dict[str, str] | None = None
     for _ in range(30):
-        status = client.get(f"/api/jobs/{body['id']}")
+        status = client.get(f"/api/jobs/hash/{body['id']}")
         assert status.status_code == 200
         status_body = status.json()
         if status_body["status"] == "completed":
@@ -76,7 +78,7 @@ def test_create_job_and_get_completed_result(monkeypatch) -> None:
     assert status_body["result_url"].startswith("/qr/")
     assert status_body["download_url"].startswith("/qr/")
     with SessionLocal() as db:
-        job = db.get(GenerationJob, body["id"])
+        job = db.query(GenerationJob).filter(GenerationJob.qr_hash == body["id"]).first()
         assert job is not None
         assert job.result_path is not None
         assert job.result_path.endswith(".jpg")
@@ -130,6 +132,44 @@ def test_create_job_uses_saved_model_setting(monkeypatch) -> None:
     assert captured["model"] == "openai/gpt-5-image"
 
 
+def test_create_job_uses_default_room_model_when_it_differs_from_legacy_setting(monkeypatch) -> None:
+    _reset_db()
+    captured: dict[str, str] = {}
+
+    def fake_generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
+        captured["model"] = model
+        return b"generated-image-bytes"
+
+    monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
+
+    client = TestClient(app)
+    prompt_id = _create_prompt(client)
+
+    updated = client.put("/api/settings/model", json={"model_name": "openai/gpt-5-image"})
+    assert updated.status_code == 200
+
+    with SessionLocal() as db:
+        room = db.query(Room).filter(Room.slug == "ph000000").first()
+        assert room is not None
+        room.model_name = "google/gemini-2.5-flash-image"
+        db.add(room)
+        db.commit()
+
+    created = client.post(
+        "/api/jobs",
+        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        data={"prompt_id": str(prompt_id)},
+    )
+    assert created.status_code == 202
+    assert created.json()["status"] == "processing"
+
+    for _ in range(30):
+        if "model" in captured:
+            break
+        time.sleep(0.02)
+    assert captured["model"] == "google/gemini-2.5-flash-image"
+
+
 @pytest.mark.parametrize("legacy_model", [LEGACY_MODEL_NAME, LEGACY_OPENAI_MODEL_NAME, "openai/gpt-5-image-mini"])
 def test_create_job_falls_back_from_legacy_model(monkeypatch, legacy_model: str) -> None:
     _reset_db()
@@ -177,17 +217,17 @@ def test_create_job_removes_source_photo_after_processing(monkeypatch, tmp_path:
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
-    job_id = created.json()["id"]
+    job_hash = created.json()["id"]
 
     for _ in range(30):
-        status = client.get(f"/api/jobs/{job_id}")
+        status = client.get(f"/api/jobs/hash/{job_hash}")
         assert status.status_code == 200
         if status.json()["status"] == "completed":
             break
         time.sleep(0.02)
 
     with SessionLocal() as db:
-        job = db.get(GenerationJob, job_id)
+        job = db.query(GenerationJob).filter(GenerationJob.qr_hash == job_hash).first()
         assert job is not None
         assert job.source_path is None
 
@@ -221,17 +261,17 @@ def test_create_job_removes_results_older_than_retention_days(monkeypatch, tmp_p
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
-    job_id = created.json()["id"]
+    job_hash = created.json()["id"]
 
     for _ in range(30):
-        status = client.get(f"/api/jobs/{job_id}")
+        status = client.get(f"/api/jobs/hash/{job_hash}")
         assert status.status_code == 200
         if status.json()["status"] == "completed":
             break
         time.sleep(0.02)
 
     with SessionLocal() as db:
-        job = db.get(GenerationJob, job_id)
+        job = db.query(GenerationJob).filter(GenerationJob.qr_hash == job_hash).first()
         assert job is not None
         assert job.result_path is not None
         newest_result_path = Path(job.result_path)
@@ -267,17 +307,17 @@ def test_create_job_keeps_all_recent_results_within_retention_days(monkeypatch, 
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
-    job_id = created.json()["id"]
+    job_hash = created.json()["id"]
 
     for _ in range(30):
-        status = client.get(f"/api/jobs/{job_id}")
+        status = client.get(f"/api/jobs/hash/{job_hash}")
         assert status.status_code == 200
         if status.json()["status"] == "completed":
             break
         time.sleep(0.02)
 
     with SessionLocal() as db:
-        job = db.get(GenerationJob, job_id)
+        job = db.query(GenerationJob).filter(GenerationJob.qr_hash == job_hash).first()
         assert job is not None
         assert job.result_path is not None
         newest_result_path = Path(job.result_path)
@@ -295,7 +335,7 @@ def test_gallery_endpoint_lists_result_files_newest_first(monkeypatch, tmp_path:
     _, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
     client = TestClient(app)
 
-    room_dir = result_dir / "room-main"
+    room_dir = result_dir / "room-ph000000"
     room_dir.mkdir(parents=True, exist_ok=True)
 
     newest = room_dir / "newest.jpg"
@@ -314,8 +354,8 @@ def test_gallery_endpoint_lists_result_files_newest_first(monkeypatch, tmp_path:
 
     body = response.json()
     assert [item["name"] for item in body] == ["newest.jpg", "oldest.png"]
-    assert body[0]["url"] == "/media/results/room-main/newest.jpg"
-    assert body[1]["url"] == "/media/results/room-main/oldest.png"
+    assert body[0]["url"] == "/media/results/room-ph000000/newest.jpg"
+    assert body[1]["url"] == "/media/results/room-ph000000/oldest.png"
 
 
 def test_gallery_endpoint_includes_other_image_extensions(monkeypatch, tmp_path: Path) -> None:
@@ -323,7 +363,7 @@ def test_gallery_endpoint_includes_other_image_extensions(monkeypatch, tmp_path:
     _, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
     client = TestClient(app)
 
-    room_dir = result_dir / "room-main"
+    room_dir = result_dir / "room-ph000000"
     room_dir.mkdir(parents=True, exist_ok=True)
 
     gif_file = room_dir / "photo.gif"

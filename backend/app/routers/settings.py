@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.job_service import get_or_create_default_room
 from app.models import ModelSetting
 from app.schemas import ModelSettingIn, ModelSettingOut
 
@@ -39,6 +40,10 @@ def get_model(db: Session = Depends(get_db)) -> ModelSetting:
 
 @router.put("/model", response_model=ModelSettingOut)
 def set_model(payload: ModelSettingIn, db: Session = Depends(get_db)) -> ModelSetting:
+    default_room = get_or_create_default_room(db)
+    default_room.model_name = payload.model_name
+    db.add(default_room)
+
     setting = db.get(ModelSetting, 1)
     if setting is None:
         setting = ModelSetting(id=1, model_name=payload.model_name)

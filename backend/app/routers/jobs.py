@@ -1,11 +1,13 @@
 import logging
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Path as FastapiPath, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, get_db
+from app.hash_utils import PUBLIC_ID_PATTERN
 from app.job_service import (
     create_processing_job,
     get_completed_job_by_qr_hash,
@@ -25,6 +27,7 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 room_router = APIRouter(prefix="/api/rooms/{room_slug}/jobs", tags=["jobs"])
 public_router = APIRouter(prefix="/qr", tags=["qr"])
 logger = logging.getLogger(__name__)
+PublicIdPath = Annotated[str, FastapiPath(pattern=PUBLIC_ID_PATTERN)]
 
 
 def _build_qr_target_url(request: Request, qr_hash: str) -> str:
@@ -40,22 +43,23 @@ def _run_generation_in_background(job_id: int) -> None:
 
 
 def _to_job_status(job: object, *, room_slug: str | None = None) -> JobStatusOut:
+    if not job.qr_hash:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job qr hash is not ready")
+
     if job.status == "completed":
-        if not job.qr_hash:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job qr hash is not ready")
         download_url = f"/qr/{job.qr_hash}"
-        qr_url = f"/api/jobs/{job.id}/qr"
+        qr_url = f"/api/jobs/hash/{job.qr_hash}/qr"
         if room_slug:
-            qr_url = f"/api/rooms/{room_slug}/jobs/{job.id}/qr"
+            qr_url = f"/api/rooms/{room_slug}/jobs/hash/{job.qr_hash}/qr"
         return JobStatusOut(
-            id=job.id,
+            id=job.qr_hash,
             status=job.status,
             result_url=download_url,
             download_url=download_url,
             qr_url=qr_url,
             error_message=job.error_message,
         )
-    return JobStatusOut(id=job.id, status=job.status, error_message=job.error_message)
+    return JobStatusOut(id=job.qr_hash, status=job.status, error_message=job.error_message)
 
 
 def _resolve_room_or_404(db: Session, room_slug: str):
@@ -68,7 +72,7 @@ def _resolve_room_or_404(db: Session, room_slug: str):
 async def _create_job_for_room(
     *,
     db: Session,
-    room_slug: str,
+    room_slug: PublicIdPath,
     prompt_id: int,
     photo: UploadFile,
     background_tasks: BackgroundTasks,
@@ -83,7 +87,9 @@ async def _create_job_for_room(
     payload = await photo.read()
     job = create_processing_job(db, prompt_id=prompt_id, room_id=room.id, source_bytes=payload)
     background_tasks.add_task(_run_generation_in_background, job.id)
-    return JobCreated(id=job.id, status=job.status)
+    if not job.qr_hash:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job qr hash is not ready")
+    return JobCreated(id=job.qr_hash, status=job.status)
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=JobCreated)
@@ -105,7 +111,7 @@ async def create_job(
 
 @room_router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=JobCreated)
 async def create_job_for_room(
-    room_slug: str,
+    room_slug: PublicIdPath,
     background_tasks: BackgroundTasks,
     photo: UploadFile,
     prompt_id: int = Form(...),
@@ -128,14 +134,14 @@ def get_gallery_images(db: Session = Depends(get_db)) -> list[GalleryImageOut]:
 
 
 @room_router.get("/gallery", response_model=list[GalleryImageOut])
-def get_gallery_images_for_room(room_slug: str, db: Session = Depends(get_db)) -> list[GalleryImageOut]:
+def get_gallery_images_for_room(room_slug: PublicIdPath, db: Session = Depends(get_db)) -> list[GalleryImageOut]:
     room = _resolve_room_or_404(db, room_slug)
     rows = list_gallery_results(room.slug)
     return [GalleryImageOut(**row) for row in rows]
 
 
 @router.get("/hash/{jpg_hash}", response_model=JobStatusOut)
-def get_job_status_by_hash(jpg_hash: str, db: Session = Depends(get_db)) -> JobStatusOut:
+def get_job_status_by_hash(jpg_hash: PublicIdPath, db: Session = Depends(get_db)) -> JobStatusOut:
     default_room = get_or_create_default_room(db)
     job = get_job_by_qr_hash(db, jpg_hash)
     if job is None or job.room_id != default_room.id:
@@ -144,7 +150,11 @@ def get_job_status_by_hash(jpg_hash: str, db: Session = Depends(get_db)) -> JobS
 
 
 @room_router.get("/hash/{jpg_hash}", response_model=JobStatusOut)
-def get_job_status_by_hash_for_room(room_slug: str, jpg_hash: str, db: Session = Depends(get_db)) -> JobStatusOut:
+def get_job_status_by_hash_for_room(
+    room_slug: PublicIdPath,
+    jpg_hash: PublicIdPath,
+    db: Session = Depends(get_db),
+) -> JobStatusOut:
     room = _resolve_room_or_404(db, room_slug)
     job = get_job_by_qr_hash(db, jpg_hash)
     if job is None or job.room_id != room.id:
@@ -162,7 +172,7 @@ def get_job_status(job_id: int, db: Session = Depends(get_db)) -> JobStatusOut:
 
 
 @room_router.get("/{job_id}", response_model=JobStatusOut)
-def get_job_status_for_room(room_slug: str, job_id: int, db: Session = Depends(get_db)) -> JobStatusOut:
+def get_job_status_for_room(room_slug: PublicIdPath, job_id: int, db: Session = Depends(get_db)) -> JobStatusOut:
     room = _resolve_room_or_404(db, room_slug)
     job = get_job_or_404(db, job_id)
     if job is None or job.room_id != room.id:
@@ -184,14 +194,43 @@ def download_qr(job_id: int, request: Request, db: Session = Depends(get_db)) ->
     return Response(content=png_bytes, media_type="image/png")
 
 
+@router.get("/hash/{jpg_hash}/qr")
+def download_qr_by_hash(jpg_hash: PublicIdPath, request: Request, db: Session = Depends(get_db)) -> Response:
+    default_room = get_or_create_default_room(db)
+    job = get_completed_job_by_qr_hash(db, jpg_hash)
+    if job is None or job.room_id != default_room.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not completed")
+
+    target_url = _build_qr_target_url(request, job.qr_hash)
+    png_bytes = build_qr_png(target_url)
+    return Response(content=png_bytes, media_type="image/png")
+
+
 @room_router.get("/{job_id}/qr")
-def download_qr_for_room(job_id: int, room_slug: str, request: Request, db: Session = Depends(get_db)) -> Response:
+def download_qr_for_room(job_id: int, room_slug: PublicIdPath, request: Request, db: Session = Depends(get_db)) -> Response:
     room = _resolve_room_or_404(db, room_slug)
     job = get_completed_job_or_404(db, job_id)
     if job is None or job.room_id != room.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not completed")
     if not job.qr_hash:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job qr hash is not ready")
+
+    target_url = _build_qr_target_url(request, job.qr_hash)
+    png_bytes = build_qr_png(target_url)
+    return Response(content=png_bytes, media_type="image/png")
+
+
+@room_router.get("/hash/{jpg_hash}/qr")
+def download_qr_by_hash_for_room(
+    room_slug: PublicIdPath,
+    jpg_hash: PublicIdPath,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Response:
+    room = _resolve_room_or_404(db, room_slug)
+    job = get_completed_job_by_qr_hash(db, jpg_hash)
+    if job is None or job.room_id != room.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not completed")
 
     target_url = _build_qr_target_url(request, job.qr_hash)
     png_bytes = build_qr_png(target_url)
@@ -207,4 +246,4 @@ def download_result_by_qr_hash(qr_hash: str, db: Session = Depends(get_db)) -> F
     if not result_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="result not found")
     suffix = result_path.suffix or ".jpg"
-    return FileResponse(result_path, filename=f"photoframe-{job.id}{suffix}")
+    return FileResponse(result_path, filename=f"photoframe-{job.qr_hash}{suffix}")

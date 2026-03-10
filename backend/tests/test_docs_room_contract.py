@@ -26,7 +26,7 @@ def test_docs_cover_room_and_admin_contract() -> None:
     assert "DEFAULT_PUBLIC_ROOM_SLUG" in backend_env
 
     assert "ADMIN_PASSWORD" in run_local
-    assert "/main" in run_local
+    assert "/ph000000" in run_local
     assert "/admin/login" in run_local
 
     assert "VITE_DEFAULT_ROOM_SLUG" in frontend_env

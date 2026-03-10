@@ -87,7 +87,6 @@ class Settings(BaseModel):
     jwt_expire_minutes: int = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
     admin_username: str = os.getenv("ADMIN_USERNAME", "admin")
     admin_password: str = os.getenv("ADMIN_PASSWORD", "")
-    admin_password_hash: str = os.getenv("ADMIN_PASSWORD_HASH", "")
 
 
 settings = Settings()

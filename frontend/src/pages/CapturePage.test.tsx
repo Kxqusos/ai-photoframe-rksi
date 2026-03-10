@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 test("renders fullscreen camera preview with overlay capture button", async () => {
-  render(<CapturePage roomSlug="room-a" />);
+  render(<CapturePage roomSlug="aaaaaaaa" />);
 
   expect(screen.getByLabelText(/camera preview/i)).toHaveClass("capture-screen");
   expect(screen.getByTestId("camera-preview")).toHaveClass("capture-screen__preview");
@@ -41,7 +41,7 @@ test("renders fullscreen camera preview with overlay capture button", async () =
 });
 
 test("shows camera capture button instead of upload input", async () => {
-  render(<CapturePage roomSlug="room-a" />);
+  render(<CapturePage roomSlug="aaaaaaaa" />);
   expect(await screen.findByLabelText(/style selection/i)).toBeInTheDocument();
   expect(screen.queryByRole("combobox", { name: /style selection/i })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /сделать фото/i })).toBeInTheDocument();
@@ -50,7 +50,7 @@ test("shows camera capture button instead of upload input", async () => {
 });
 
 test("loads styles for current room slug", async () => {
-  render(<CapturePage roomSlug="room-a" />);
+  render(<CapturePage roomSlug="aaaaaaaa" />);
   await screen.findByRole("button", { name: /anime/i });
-  expect(listPromptsMock).toHaveBeenCalledWith("room-a");
+  expect(listPromptsMock).toHaveBeenCalledWith("aaaaaaaa");
 });

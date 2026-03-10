@@ -1,30 +1,41 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import { AdminPromptManager } from "../components/AdminPromptManager";
-import { createRoomAdminPrompt, deleteRoomAdminPrompt, listRoomAdminPrompts, listRooms, updateRoomModel } from "../lib/api";
+import {
+  createRoomAdminPrompt,
+  deleteRoomAdminPrompt,
+  listRoomAdminPrompts,
+  listRooms,
+  updateRoomModel,
+  uploadRoomPromptPreview
+} from "../lib/api";
 import { loadAdminToken } from "../lib/auth";
 import { navigateTo } from "../lib/navigation";
 import type { Room, StylePrompt } from "../types";
 
 type Props = {
-  roomId: number;
+  roomSlug: string;
 };
 
-export function AdminRoomEditorPage({ roomId }: Props) {
+export function AdminRoomEditorPage({ roomSlug }: Props) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [prompts, setPrompts] = useState<StylePrompt[]>([]);
   const [modelName, setModelName] = useState("");
 
-  const room = useMemo(() => rooms.find((item) => item.id === roomId) || null, [roomId, rooms]);
+  const room = useMemo(() => rooms.find((item) => item.slug === roomSlug) || null, [roomSlug, rooms]);
 
   async function loadAll() {
-    const [nextRooms, nextPrompts] = await Promise.all([listRooms(), listRoomAdminPrompts(roomId)]);
+    const nextRooms = await listRooms();
     setRooms(nextRooms);
-    setPrompts(nextPrompts);
-    const current = nextRooms.find((item) => item.id === roomId);
+    const current = nextRooms.find((item) => item.slug === roomSlug);
     if (current) {
       setModelName(current.model_name);
+      const nextPrompts = await listRoomAdminPrompts(current.id);
+      setPrompts(nextPrompts);
+      return;
     }
+    setPrompts([]);
+    setModelName("");
   }
 
   useEffect(() => {
@@ -33,10 +44,13 @@ export function AdminRoomEditorPage({ roomId }: Props) {
       return;
     }
     void loadAll();
-  }, [roomId]);
+  }, [roomSlug]);
 
   async function saveModel() {
-    await updateRoomModel(roomId, modelName);
+    if (!room) {
+      return;
+    }
+    await updateRoomModel(room.id, modelName);
     await loadAll();
   }
 
@@ -44,15 +58,27 @@ export function AdminRoomEditorPage({ roomId }: Props) {
     name: string;
     description: string;
     prompt: string;
-    preview_image_url: string;
-    icon_image_url: string;
+    previewFile: File;
   }) {
-    await createRoomAdminPrompt(roomId, payload);
+    if (!room) {
+      return;
+    }
+    const preview = await uploadRoomPromptPreview(room.id, payload.previewFile);
+    await createRoomAdminPrompt(room.id, {
+      name: payload.name,
+      description: payload.description,
+      prompt: payload.prompt,
+      preview_image_url: preview.url,
+      icon_image_url: preview.url
+    });
     await loadAll();
   }
 
   async function deletePrompt(promptId: number) {
-    await deleteRoomAdminPrompt(roomId, promptId);
+    if (!room) {
+      return;
+    }
+    await deleteRoomAdminPrompt(room.id, promptId);
     await loadAll();
   }
 

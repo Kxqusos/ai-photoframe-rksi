@@ -5,7 +5,6 @@ type PromptFormValues = {
   description: string;
   prompt: string;
   previewFile: File | null;
-  iconFile: File | null;
 };
 
 type Props = {
@@ -47,14 +46,6 @@ export function PromptForm({ values, onChange, onSubmit, isSubmitting = false }:
         type="file"
         accept="image/*"
         onChange={(event) => onChange({ ...values, previewFile: event.target.files?.[0] ?? null })}
-      />
-
-      <label htmlFor="prompt-icon">Иконка</label>
-      <input
-        id="prompt-icon"
-        type="file"
-        accept="image/*"
-        onChange={(event) => onChange({ ...values, iconFile: event.target.files?.[0] ?? null })}
       />
 
       <button type="button" onClick={onSubmit} disabled={isSubmitting}>

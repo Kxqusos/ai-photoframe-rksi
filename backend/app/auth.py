@@ -3,14 +3,12 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from app.config import settings
 
 JWT_ALGORITHM = "HS256"
 
-password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 router = APIRouter(prefix="/api/admin/auth", tags=["admin-auth"])
 
 
@@ -32,16 +30,10 @@ def verify_admin_credentials(username: str, password: str) -> bool:
     if not hmac.compare_digest(username, settings.admin_username):
         return False
 
-    if settings.admin_password:
-        return hmac.compare_digest(password, settings.admin_password)
-
-    if not settings.admin_password_hash:
+    if not settings.admin_password:
         return False
 
-    try:
-        return password_context.verify(password, settings.admin_password_hash)
-    except ValueError:
-        return False
+    return hmac.compare_digest(password, settings.admin_password)
 
 
 def create_access_token(subject: str) -> str:

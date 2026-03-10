@@ -1,8 +1,14 @@
-from pydantic import BaseModel, ConfigDict
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, StringConstraints
+
+from app.hash_utils import PUBLIC_ID_PATTERN
+
+PublicId = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=PUBLIC_ID_PATTERN)]
 
 
 class RoomCreate(BaseModel):
-    slug: str
+    slug: PublicId | None = None
     name: str
     model_name: str
     is_active: bool = True
@@ -16,14 +22,14 @@ class RoomOut(RoomCreate):
 
 class PublicRoomOut(BaseModel):
     id: int
-    slug: str
+    slug: PublicId
     name: str
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class RoomUpdate(BaseModel):
-    slug: str
+    slug: PublicId | None = None
     name: str
     model_name: str
     is_active: bool
@@ -59,12 +65,12 @@ class ModelSettingOut(BaseModel):
 
 
 class JobCreated(BaseModel):
-    id: int
+    id: PublicId
     status: str
 
 
 class JobStatusOut(BaseModel):
-    id: int
+    id: PublicId
     status: str
     result_url: str | None = None
     download_url: str | None = None

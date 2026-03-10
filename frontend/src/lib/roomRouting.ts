@@ -1,11 +1,20 @@
-export const DEFAULT_ROOM_SLUG = "main";
+export const DEFAULT_ROOM_SLUG = "ph000000";
+const PUBLIC_ID_PATTERN = /^[a-z0-9]{8}$/;
+
+function normalizePublicId(raw: string | null | undefined): string | null {
+  const value = (raw || "").trim().toLowerCase();
+  if (!PUBLIC_ID_PATTERN.test(value)) {
+    return null;
+  }
+  return value;
+}
 
 export function normalizeRoomSlug(raw: string | null | undefined): string {
-  const value = (raw || "").trim().toLowerCase();
-  if (!value) {
-    return DEFAULT_ROOM_SLUG;
-  }
-  return value.replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || DEFAULT_ROOM_SLUG;
+  return normalizePublicId(raw) ?? DEFAULT_ROOM_SLUG;
+}
+
+export function normalizeResultHash(raw: string | null | undefined): string | null {
+  return normalizePublicId(raw);
 }
 
 export function buildRoomApiPath(roomSlug: string, suffix: string): string {
@@ -32,7 +41,11 @@ export function resolvePublicRoute(pathname: string): PublicRoute | null {
 
   const roomResult = clean.match(/^\/([^/]+)\/result\/([^/]+)\/?$/i);
   if (roomResult) {
-    return { page: "result", roomSlug: normalizeRoomSlug(roomResult[1]), jpgHash: roomResult[2] };
+    const jpgHash = normalizeResultHash(roomResult[2]);
+    if (!jpgHash) {
+      return null;
+    }
+    return { page: "result", roomSlug: normalizeRoomSlug(roomResult[1]), jpgHash };
   }
 
   const roomCapture = clean.match(/^\/([^/]+)\/?$/i);
@@ -46,7 +59,11 @@ export function resolvePublicRoute(pathname: string): PublicRoute | null {
 
   const legacyResult = clean.match(/^\/result\/([^/]+)\/?$/i);
   if (legacyResult) {
-    return { page: "result", roomSlug: DEFAULT_ROOM_SLUG, jpgHash: legacyResult[1] };
+    const jpgHash = normalizeResultHash(legacyResult[1]);
+    if (!jpgHash) {
+      return null;
+    }
+    return { page: "result", roomSlug: DEFAULT_ROOM_SLUG, jpgHash };
   }
 
   return null;

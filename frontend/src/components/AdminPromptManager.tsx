@@ -1,10 +1,17 @@
 import React, { useState } from "react";
 
-import type { PromptCreate, StylePrompt } from "../types";
+import type { StylePrompt } from "../types";
+
+type PromptCreateInput = {
+  name: string;
+  description: string;
+  prompt: string;
+  previewFile: File;
+};
 
 type Props = {
   prompts: StylePrompt[];
-  onCreate: (payload: PromptCreate) => Promise<void>;
+  onCreate: (payload: PromptCreateInput) => Promise<void>;
   onDelete: (promptId: number) => Promise<void>;
 };
 
@@ -12,25 +19,23 @@ export function AdminPromptManager({ prompts, onCreate, onDelete }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [iconUrl, setIconUrl] = useState("");
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
 
   async function submit() {
-    if (!name.trim() || !description.trim() || !prompt.trim()) {
+    if (!name.trim() || !description.trim() || !prompt.trim() || !previewFile) {
       return;
     }
+
     await onCreate({
       name: name.trim(),
       description: description.trim(),
       prompt: prompt.trim(),
-      preview_image_url: previewUrl.trim() || "/media/previews/default.jpg",
-      icon_image_url: iconUrl.trim() || "/media/icons/default.png"
+      previewFile
     });
     setName("");
     setDescription("");
     setPrompt("");
-    setPreviewUrl("");
-    setIconUrl("");
+    setPreviewFile(null);
   }
 
   return (
@@ -44,11 +49,13 @@ export function AdminPromptManager({ prompts, onCreate, onDelete }: Props) {
       <label htmlFor="admin-prompt-text">Текст промпта</label>
       <textarea id="admin-prompt-text" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
 
-      <label htmlFor="admin-prompt-preview-url">URL превью</label>
-      <input id="admin-prompt-preview-url" value={previewUrl} onChange={(event) => setPreviewUrl(event.target.value)} />
-
-      <label htmlFor="admin-prompt-icon-url">URL иконки</label>
-      <input id="admin-prompt-icon-url" value={iconUrl} onChange={(event) => setIconUrl(event.target.value)} />
+      <label htmlFor="admin-prompt-preview-file">Превью (PNG/JPG/JPEG)</label>
+      <input
+        id="admin-prompt-preview-file"
+        type="file"
+        accept="image/png,image/jpeg,image/jpg"
+        onChange={(event) => setPreviewFile(event.target.files?.[0] ?? null)}
+      />
 
       <button type="button" onClick={() => void submit()}>
         Добавить промпт

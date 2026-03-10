@@ -8,8 +8,7 @@ import { PublicRoomMenu } from "./components/PublicRoomMenu";
 import { CapturePage } from "./pages/CapturePage";
 import { GalleryPage } from "./pages/GalleryPage";
 import { ResultPage } from "./pages/ResultPage";
-import { resolvePublicRoute } from "./lib/roomRouting";
-import { SettingsPage } from "./pages/SettingsPage";
+import { DEFAULT_ROOM_SLUG, resolvePublicRoute } from "./lib/roomRouting";
 
 function resolvePathname(): string {
   if (typeof window === "undefined") {
@@ -35,13 +34,9 @@ export default function App() {
     return <AdminDashboardPage />;
   }
 
-  const adminRoomMatch = pathname.match(/^\/admin\/rooms\/(\d+)$/);
+  const adminRoomMatch = pathname.match(/^\/admin\/rooms\/([a-z0-9]{8})$/i);
   if (adminRoomMatch) {
-    return <AdminRoomEditorPage roomId={Number(adminRoomMatch[1])} />;
-  }
-
-  if (pathname === "/settings") {
-    return <SettingsPage />;
+    return <AdminRoomEditorPage roomSlug={adminRoomMatch[1].toLowerCase()} />;
   }
 
   const route = resolvePublicRoute(pathname);
@@ -72,8 +67,8 @@ export default function App() {
 
   return (
     <>
-      <PublicRoomMenu currentRoomSlug="main" />
-      <CapturePage roomSlug="main" />
+      <PublicRoomMenu currentRoomSlug={DEFAULT_ROOM_SLUG} />
+      <CapturePage roomSlug={DEFAULT_ROOM_SLUG} />
     </>
   );
 }

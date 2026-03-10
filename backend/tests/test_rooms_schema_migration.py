@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 from sqlalchemy import inspect
 from sqlalchemy.orm import sessionmaker
@@ -66,6 +67,41 @@ def test_default_room_is_created_on_startup(monkeypatch, tmp_path: Path) -> None
     db_module, models_module = _load_fresh_backend_modules(monkeypatch, tmp_path)
 
     with db_module.SessionLocal() as db:
-        default_room = db.query(models_module.Room).filter(models_module.Room.slug == "main").first()
+        default_room = db.query(models_module.Room).filter(models_module.Room.slug == "ph000000").first()
         assert default_room is not None
         assert default_room.is_active is True
+
+
+def test_legacy_room_slugs_are_migrated_to_public_id_format(monkeypatch, tmp_path: Path) -> None:
+    import app.db as db_module
+
+    db_file = tmp_path / "rooms-schema-legacy.db"
+    database_url = f"sqlite:///{db_file}"
+    test_engine = db_module.create_engine(database_url, connect_args={"check_same_thread": False})
+    test_session_local = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    monkeypatch.setattr(db_module, "DATABASE_URL", database_url)
+    monkeypatch.setattr(db_module, "engine", test_engine)
+    monkeypatch.setattr(db_module, "SessionLocal", test_session_local)
+    monkeypatch.setattr(db_module, "generate_public_id", lambda: "zzzzzzzz")
+
+    db_module.Base.metadata.create_all(bind=test_engine)
+    with test_engine.begin() as connection:
+        connection.execute(
+            db_module.text(
+                """
+                INSERT INTO rooms (slug, name, model_name, is_active)
+                VALUES ('main', 'Main', 'openai/gpt-5-image', 1),
+                       ('8march', 'Room Legacy', 'openai/gpt-5-image', 1)
+                """
+            )
+        )
+
+    db_module.init_db()
+
+    with db_module.SessionLocal() as db:
+        slugs = [row[0] for row in db.execute(db_module.text("SELECT slug FROM rooms ORDER BY id ASC")).all()]
+    assert "main" not in slugs
+    assert "8march" not in slugs
+    assert "ph000000" in slugs
+    assert all(re.fullmatch(r"[a-z0-9]{8}", slug) for slug in slugs)

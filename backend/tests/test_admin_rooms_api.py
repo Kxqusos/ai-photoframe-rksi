@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -12,15 +13,13 @@ def _reset_db() -> None:
 
 
 def _configure_admin_credentials(monkeypatch) -> tuple[str, str]:
-    from app.auth import password_context, settings
+    from app.auth import settings
 
     username = "admin"
     password = "super-secret-password"
-    password_hash = password_context.hash(password)
 
     monkeypatch.setattr(settings, "admin_username", username)
-    monkeypatch.setattr(settings, "admin_password", "")
-    monkeypatch.setattr(settings, "admin_password_hash", password_hash)
+    monkeypatch.setattr(settings, "admin_password", password)
     monkeypatch.setattr(settings, "jwt_secret", "test-jwt-secret-with-at-least-32-bytes")
     monkeypatch.setattr(settings, "jwt_expire_minutes", 60)
     return username, password
@@ -46,19 +45,19 @@ def test_admin_rooms_crud_and_model_update_requires_jwt(monkeypatch) -> None:
     created = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "room-a", "name": "Room A", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={"slug": "aaaaaaaa", "name": "Room A", "model_name": "openai/gpt-5-image", "is_active": True},
     )
     assert created.status_code == 201
     room_id = created.json()["id"]
 
     listed = client.get("/api/admin/rooms", headers=headers)
     assert listed.status_code == 200
-    assert any(room["slug"] == "room-a" for room in listed.json())
+    assert any(room["slug"] == "aaaaaaaa" for room in listed.json())
 
     updated = client.put(
         f"/api/admin/rooms/{room_id}",
         headers=headers,
-        json={"slug": "room-a", "name": "Room A Updated", "model_name": "openai/gpt-5-image", "is_active": False},
+        json={"slug": "aaaaaaaa", "name": "Room A Updated", "model_name": "openai/gpt-5-image", "is_active": False},
     )
     assert updated.status_code == 200
     assert updated.json()["name"] == "Room A Updated"
@@ -83,12 +82,12 @@ def test_admin_room_prompt_endpoints_are_scoped(monkeypatch) -> None:
     room_a = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "room-a", "name": "Room A", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={"slug": "aaaaaaaa", "name": "Room A", "model_name": "openai/gpt-5-image", "is_active": True},
     )
     room_b = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "room-b", "name": "Room B", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={"slug": "bbbbbbbb", "name": "Room B", "model_name": "openai/gpt-5-image", "is_active": True},
     )
     assert room_a.status_code == 201
     assert room_b.status_code == 201
@@ -138,7 +137,7 @@ def test_admin_room_media_uploads_are_room_scoped(monkeypatch, tmp_path: Path) -
     room = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "room-media", "name": "Room Media", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={"slug": "cccccccc", "name": "Room Media", "model_name": "openai/gpt-5-image", "is_active": True},
     )
     assert room.status_code == 201
     room_id = room.json()["id"]
@@ -158,3 +157,35 @@ def test_admin_room_media_uploads_are_room_scoped(monkeypatch, tmp_path: Path) -
     )
     assert icon_upload.status_code == 201
     assert icon_upload.json()["url"].startswith(f"/media/icons/room-{room_id}/")
+
+
+def test_admin_room_rejects_invalid_slug_format(monkeypatch) -> None:
+    _reset_db()
+    username, password = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+    token = _get_admin_token(client, username, password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    invalid = client.post(
+        "/api/admin/rooms",
+        headers=headers,
+        json={"slug": "room-a", "name": "Room A", "model_name": "openai/gpt-5-image", "is_active": True},
+    )
+    assert invalid.status_code == 422
+
+
+def test_admin_room_auto_generates_slug_when_missing(monkeypatch) -> None:
+    _reset_db()
+    username, password = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+    token = _get_admin_token(client, username, password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/api/admin/rooms",
+        headers=headers,
+        json={"name": "Room Auto", "model_name": "openai/gpt-5-image", "is_active": True},
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert re.fullmatch(r"[a-z0-9]{8}", body["slug"])

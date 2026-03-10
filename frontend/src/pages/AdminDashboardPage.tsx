@@ -4,7 +4,7 @@ import { AdminRoomForm } from "../components/AdminRoomForm";
 import { createRoom, listRooms } from "../lib/api";
 import { loadAdminToken } from "../lib/auth";
 import { navigateTo } from "../lib/navigation";
-import type { Room } from "../types";
+import type { Room, RoomCreatePayload } from "../types";
 
 export function AdminDashboardPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -28,7 +28,7 @@ export function AdminDashboardPage() {
     void load();
   }, []);
 
-  async function onCreate(payload: Omit<Room, "id">) {
+  async function onCreate(payload: RoomCreatePayload) {
     await createRoom(payload);
     await load();
   }
@@ -45,7 +45,7 @@ export function AdminDashboardPage() {
           <div key={room.id} className="prompt-item">
             <h3>{room.name}</h3>
             <p>{room.slug}</p>
-            <a href={`/admin/rooms/${room.id}`}>Открыть</a>
+            <a href={`/admin/rooms/${room.slug}`}>Открыть</a>
           </div>
         ))}
       </section>

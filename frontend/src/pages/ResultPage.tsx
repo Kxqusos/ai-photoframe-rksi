@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import { getRoomJobStatus } from "../lib/api";
-import { normalizeRoomSlug } from "../lib/roomRouting";
+import { normalizeResultHash, normalizeRoomSlug } from "../lib/roomRouting";
 import type { JobStatus } from "../types";
 
 type Props = {
@@ -11,14 +11,14 @@ type Props = {
 
 function resolveJpgHash(provided?: string): string | null {
   if (typeof provided === "string" && provided.trim()) {
-    return provided;
+    return normalizeResultHash(provided);
   }
 
   const fromPath = window.location.pathname.match(/\/result\/([^/]+)\/?$/i)?.[1];
   if (!fromPath) {
     return null;
   }
-  return fromPath;
+  return normalizeResultHash(fromPath);
 }
 
 export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {

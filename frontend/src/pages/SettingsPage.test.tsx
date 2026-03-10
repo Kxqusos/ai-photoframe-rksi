@@ -4,45 +4,93 @@ import { vi } from "vitest";
 
 import { SettingsPage } from "./SettingsPage";
 
-const listPromptsMock = vi.fn();
+const loadAdminTokenMock = vi.fn();
+const navigateToMock = vi.fn();
 const listModelsMock = vi.fn();
-const getModelMock = vi.fn();
-const setModelMock = vi.fn();
-const uploadPromptPreviewMock = vi.fn();
-const uploadPromptIconMock = vi.fn();
-const createPromptMock = vi.fn();
-const deletePromptMock = vi.fn();
+const listRoomsMock = vi.fn();
+const listRoomAdminPromptsMock = vi.fn();
+const updateRoomModelMock = vi.fn();
+const uploadRoomPromptPreviewMock = vi.fn();
+const createRoomAdminPromptMock = vi.fn();
+const deleteRoomAdminPromptMock = vi.fn();
 
-vi.mock("../lib/api", () => ({
-  listPrompts: () => listPromptsMock(),
-  listModels: () => listModelsMock(),
-  getModel: () => getModelMock(),
-  setModel: (model: string) => setModelMock(model),
-  uploadPromptPreview: (file: File) => uploadPromptPreviewMock(file),
-  uploadPromptIcon: (file: File) => uploadPromptIconMock(file),
-  createPrompt: (payload: unknown) => createPromptMock(payload),
-  deletePrompt: (promptId: number) => deletePromptMock(promptId)
+vi.mock("../lib/auth", () => ({
+  loadAdminToken: () => loadAdminTokenMock()
 }));
 
-test("creates prompt with name, description, prompt text, preview and icon", async () => {
-  listModelsMock.mockResolvedValue(["openai/gpt-5-image"]);
-  getModelMock.mockResolvedValue({ id: 1, model_name: "openai/gpt-5-image" });
-  listPromptsMock.mockResolvedValue([]);
+vi.mock("../lib/navigation", () => ({
+  navigateTo: (pathname: string) => navigateToMock(pathname)
+}));
 
-  uploadPromptPreviewMock.mockResolvedValue({ url: "/media/previews/preview.jpg" });
-  uploadPromptIconMock.mockResolvedValue({ url: "/media/icons/icon.png" });
-  createPromptMock.mockResolvedValue({
+vi.mock("../lib/api", () => ({
+  listModels: () => listModelsMock(),
+  listRooms: () => listRoomsMock(),
+  listRoomAdminPrompts: (roomId: number) => listRoomAdminPromptsMock(roomId),
+  updateRoomModel: (roomId: number, modelName: string) => updateRoomModelMock(roomId, modelName),
+  uploadRoomPromptPreview: (roomId: number, file: File) => uploadRoomPromptPreviewMock(roomId, file),
+  createRoomAdminPrompt: (roomId: number, payload: unknown) => createRoomAdminPromptMock(roomId, payload),
+  deleteRoomAdminPrompt: (roomId: number, promptId: number) => deleteRoomAdminPromptMock(roomId, promptId)
+}));
+
+test("redirects to admin login when token is missing", async () => {
+  loadAdminTokenMock.mockReturnValue(null);
+
+  render(<SettingsPage />);
+
+  await waitFor(() => {
+    expect(navigateToMock).toHaveBeenCalledWith("/admin/login");
+  });
+});
+
+test("applies model and manages prompts for selected room", async () => {
+  loadAdminTokenMock.mockReturnValue("jwt-token");
+  listModelsMock.mockResolvedValue(["openai/gpt-5-image", "google/gemini-2.5-flash-image"]);
+  listRoomsMock.mockResolvedValue([
+    { id: 7, slug: "aaaaaaaa", name: "Room A", model_name: "openai/gpt-5-image", is_active: true },
+    { id: 9, slug: "bbbbbbbb", name: "Room B", model_name: "google/gemini-2.5-flash-image", is_active: true }
+  ]);
+  listRoomAdminPromptsMock
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([
+      {
+        id: 12,
+        name: "Watercolor",
+        description: "Painterly style",
+        prompt: "watercolor painting",
+        preview_image_url: "/media/previews/preview.jpg",
+        icon_image_url: "/media/icons/icon.png"
+      }
+    ])
+    .mockResolvedValueOnce([]);
+  updateRoomModelMock.mockResolvedValue({});
+  uploadRoomPromptPreviewMock.mockResolvedValue({ url: "/media/previews/preview.jpg" });
+  createRoomAdminPromptMock.mockResolvedValue({
     id: 12,
     name: "Watercolor",
     description: "Painterly style",
     prompt: "watercolor painting",
     preview_image_url: "/media/previews/preview.jpg",
-    icon_image_url: "/media/icons/icon.png"
+    icon_image_url: "/media/previews/preview.jpg"
   });
+  deleteRoomAdminPromptMock.mockResolvedValue(undefined);
 
   render(<SettingsPage />);
 
-  await screen.findByText("Settings");
+  await waitFor(() => {
+    expect(listRoomAdminPromptsMock).toHaveBeenCalledWith(7);
+  });
+
+  fireEvent.change(screen.getByLabelText(/комната/i), { target: { value: "9" } });
+  await waitFor(() => {
+    expect(listRoomAdminPromptsMock).toHaveBeenCalledWith(9);
+  });
+
+  fireEvent.change(screen.getByLabelText(/модель комнаты/i), { target: { value: "openai/gpt-5-image" } });
+  fireEvent.click(screen.getByRole("button", { name: /применить модель/i }));
+  await waitFor(() => {
+    expect(updateRoomModelMock).toHaveBeenCalledWith(9, "openai/gpt-5-image");
+  });
 
   fireEvent.change(screen.getByLabelText(/название/i), { target: { value: "Watercolor" } });
   fireEvent.change(screen.getByLabelText(/описание/i), { target: { value: "Painterly style" } });
@@ -50,44 +98,26 @@ test("creates prompt with name, description, prompt text, preview and icon", asy
 
   const previewFile = new File(["x"], "preview.jpg", { type: "image/jpeg" });
   fireEvent.change(screen.getByLabelText(/пример результата/i), { target: { files: [previewFile] } });
-
-  const iconFile = new File(["x"], "icon.png", { type: "image/png" });
-  fireEvent.change(screen.getByLabelText(/иконка/i), { target: { files: [iconFile] } });
+  expect(screen.queryByLabelText(/иконка/i)).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: /сохранить/i }));
 
   await waitFor(() => {
-    expect(uploadPromptPreviewMock).toHaveBeenCalled();
-    expect(uploadPromptIconMock).toHaveBeenCalled();
-    expect(createPromptMock).toHaveBeenCalled();
+    expect(uploadRoomPromptPreviewMock).toHaveBeenCalledWith(9, previewFile);
+    expect(createRoomAdminPromptMock).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        name: "Watercolor",
+        description: "Painterly style",
+        prompt: "watercolor painting",
+        preview_image_url: "/media/previews/preview.jpg",
+        icon_image_url: "/media/previews/preview.jpg"
+      })
+    );
   });
 
-  expect(await screen.findByText("Watercolor")).toBeInTheDocument();
-});
-
-test("deletes style from settings list", async () => {
-  listModelsMock.mockResolvedValue(["openai/gpt-5-image"]);
-  getModelMock.mockResolvedValue({ id: 1, model_name: "openai/gpt-5-image" });
-  listPromptsMock.mockResolvedValue([
-    {
-      id: 1,
-      name: "Anime",
-      description: "Soft anime shading",
-      prompt: "Turn input photo into anime portrait",
-      preview_image_url: "/media/previews/anime.jpg",
-      icon_image_url: "/media/icons/anime.png"
-    }
-  ]);
-  deletePromptMock.mockResolvedValue(undefined);
-
-  render(<SettingsPage />);
-
-  await screen.findByText("Anime");
-  fireEvent.click(screen.getByRole("button", { name: /удалить стиль anime/i }));
-
+  fireEvent.click(await screen.findByRole("button", { name: /удалить стиль watercolor/i }));
   await waitFor(() => {
-    expect(deletePromptMock).toHaveBeenCalledWith(1);
+    expect(deleteRoomAdminPromptMock).toHaveBeenCalledWith(9, 12);
   });
-
-  expect(screen.queryByText("Anime")).not.toBeInTheDocument();
 });

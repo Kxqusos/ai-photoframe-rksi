@@ -2,27 +2,29 @@ import React, { useEffect, useState } from "react";
 
 import { PromptForm, type PromptFormValues } from "../components/PromptForm";
 import {
-  createPrompt,
-  deletePrompt,
-  getModel,
+  createRoomAdminPrompt,
+  deleteRoomAdminPrompt,
   listModels,
-  listPrompts,
-  setModel,
-  uploadPromptIcon,
-  uploadPromptPreview
+  listRoomAdminPrompts,
+  listRooms,
+  updateRoomModel,
+  uploadRoomPromptPreview
 } from "../lib/api";
-import type { PromptCreate, StylePrompt } from "../types";
+import { loadAdminToken } from "../lib/auth";
+import { navigateTo } from "../lib/navigation";
+import type { PromptCreate, Room, StylePrompt } from "../types";
 
 const EMPTY_FORM: PromptFormValues = {
   name: "",
   description: "",
   prompt: "",
-  previewFile: null,
-  iconFile: null
+  previewFile: null
 };
 
 export function SettingsPage() {
   const [models, setModels] = useState<string[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [prompts, setPrompts] = useState<StylePrompt[]>([]);
   const [formValues, setFormValues] = useState<PromptFormValues>(EMPTY_FORM);
@@ -32,15 +34,28 @@ export function SettingsPage() {
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
+    if (!loadAdminToken()) {
+      navigateTo("/admin/login");
+      return;
+    }
+
     async function load() {
-      const [modelNames, modelSetting, promptItems] = await Promise.all([
-        listModels(),
-        getModel(),
-        listPrompts()
-      ]);
+      const [modelNames, roomItems] = await Promise.all([listModels(), listRooms()]);
 
       setModels(modelNames);
-      setSelectedModel(modelSetting.model_name);
+      setRooms(roomItems);
+
+      if (roomItems.length === 0) {
+        setSelectedRoomId(null);
+        setSelectedModel("");
+        setPrompts([]);
+        return;
+      }
+
+      const firstRoom = roomItems[0];
+      setSelectedRoomId(firstRoom.id);
+      setSelectedModel(firstRoom.model_name);
+      const promptItems = await listRoomAdminPrompts(firstRoom.id);
       setPrompts(promptItems);
     }
 
@@ -49,15 +64,24 @@ export function SettingsPage() {
     });
   }, []);
 
+  async function onSelectRoom(roomId: number) {
+    const room = rooms.find((item) => item.id === roomId);
+    setSelectedRoomId(roomId);
+    setSelectedModel(room?.model_name || "");
+    setPrompts(await listRoomAdminPrompts(roomId));
+  }
+
   async function onSaveModel() {
-    if (!selectedModel) {
+    if (!selectedModel || selectedRoomId === null) {
       return;
     }
 
     setSavingModel(true);
     setError("");
     try {
-      await setModel(selectedModel);
+      const updatedRoom = await updateRoomModel(selectedRoomId, selectedModel);
+      setRooms((current) => current.map((item) => (item.id === updatedRoom.id ? updatedRoom : item)));
+      setSelectedModel(updatedRoom.model_name);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to save model");
     } finally {
@@ -66,14 +90,17 @@ export function SettingsPage() {
   }
 
   async function onSavePrompt() {
+    if (selectedRoomId === null) {
+      return;
+    }
+
     if (
       !formValues.name.trim() ||
       !formValues.description.trim() ||
       !formValues.prompt.trim() ||
-      !formValues.previewFile ||
-      !formValues.iconFile
+      !formValues.previewFile
     ) {
-      setError("Заполните все поля и загрузите обе картинки");
+      setError("Заполните все поля и загрузите изображение");
       return;
     }
 
@@ -81,20 +108,17 @@ export function SettingsPage() {
     setError("");
 
     try {
-      const [preview, icon] = await Promise.all([
-        uploadPromptPreview(formValues.previewFile),
-        uploadPromptIcon(formValues.iconFile)
-      ]);
+      const preview = await uploadRoomPromptPreview(selectedRoomId, formValues.previewFile);
 
       const payload: PromptCreate = {
         name: formValues.name.trim(),
         description: formValues.description.trim(),
         prompt: formValues.prompt.trim(),
         preview_image_url: preview.url,
-        icon_image_url: icon.url
+        icon_image_url: preview.url
       };
 
-      const created = await createPrompt(payload);
+      const created = await createRoomAdminPrompt(selectedRoomId, payload);
       setPrompts((current) => [...current, created]);
       setFormValues(EMPTY_FORM);
     } catch (cause) {
@@ -105,10 +129,14 @@ export function SettingsPage() {
   }
 
   async function onDeletePrompt(promptId: number) {
+    if (selectedRoomId === null) {
+      return;
+    }
+
     setError("");
     setDeletingPromptIds((current) => [...current, promptId]);
     try {
-      await deletePrompt(promptId);
+      await deleteRoomAdminPrompt(selectedRoomId, promptId);
       setPrompts((current) => current.filter((item) => item.id !== promptId));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to delete prompt");
@@ -119,11 +147,30 @@ export function SettingsPage() {
 
   return (
     <main className="page">
-      <h1>Settings</h1>
+      <h1>Настройки комнаты</h1>
 
       <section className="panel form-grid">
-        <h2>OpenRouter model</h2>
-        <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+        <h2>Комната</h2>
+        <label htmlFor="settings-room">Комната</label>
+        <select
+          id="settings-room"
+          value={selectedRoomId ?? ""}
+          onChange={(event) => void onSelectRoom(Number(event.target.value))}
+          disabled={rooms.length === 0}
+        >
+          {rooms.length === 0 ? <option value="">Нет доступных комнат</option> : null}
+          {rooms.map((room) => (
+            <option key={room.id} value={room.id}>
+              {room.name} ({room.slug})
+            </option>
+          ))}
+        </select>
+      </section>
+
+      <section className="panel form-grid">
+        <h2>Модель комнаты</h2>
+        <label htmlFor="settings-room-model">Модель комнаты</label>
+        <select id="settings-room-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
           {models.map((modelName) => (
             <option key={modelName} value={modelName}>
               {modelName}
@@ -131,7 +178,7 @@ export function SettingsPage() {
           ))}
         </select>
         <div className="action-row">
-          <button type="button" onClick={onSaveModel} disabled={savingModel || !selectedModel}>
+          <button type="button" onClick={onSaveModel} disabled={savingModel || !selectedModel || selectedRoomId === null}>
             Применить модель
           </button>
         </div>

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { listPublicRooms } from "../lib/api";
 import { navigateTo } from "../lib/navigation";
-import { normalizeRoomSlug } from "../lib/roomRouting";
+import { DEFAULT_ROOM_SLUG, normalizeRoomSlug } from "../lib/roomRouting";
 import type { PublicRoom } from "../types";
 
 type Props = {
@@ -10,7 +10,7 @@ type Props = {
 };
 
 function toDisplayRoomName(room: PublicRoom): string {
-  if (room.slug === "main" && room.name.trim().toLowerCase() === "main") {
+  if (room.slug === DEFAULT_ROOM_SLUG && room.name.trim().toLowerCase() === "main") {
     return "Главная";
   }
   return room.name;
@@ -60,7 +60,11 @@ export function PublicRoomMenu({ currentRoomSlug }: Props) {
   }, []);
 
   const options = useMemo(() => {
-    const fallback = { id: 0, slug: normalizedCurrent, name: normalizedCurrent === "main" ? "Главная" : normalizedCurrent };
+    const fallback = {
+      id: 0,
+      slug: normalizedCurrent,
+      name: normalizedCurrent === DEFAULT_ROOM_SLUG ? "Главная" : normalizedCurrent
+    };
     return uniqueBySlug([fallback, ...rooms]);
   }, [normalizedCurrent, rooms]);
 

@@ -28,18 +28,21 @@ test("redirects to /admin/login when token is missing", () => {
 
 test("loads rooms and allows creating a room", async () => {
   loadAdminTokenMock.mockReturnValue("jwt-token");
-  listRoomsMock.mockResolvedValue([{ id: 1, slug: "room-a", name: "Room A", model_name: "m", is_active: true }]);
-  createRoomMock.mockResolvedValue({ id: 2, slug: "room-b", name: "Room B", model_name: "m", is_active: true });
+  listRoomsMock.mockResolvedValue([{ id: 1, slug: "aaaaaaaa", name: "Room A", model_name: "m", is_active: true }]);
+  createRoomMock.mockResolvedValue({ id: 2, slug: "bbbbbbbb", name: "Room B", model_name: "m", is_active: true });
 
   render(<AdminDashboardPage />);
 
   expect(await screen.findByText(/room a/i)).toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText(/слаг/i), { target: { value: "room-b" } });
   fireEvent.change(screen.getByLabelText(/название/i), { target: { value: "Room B" } });
   fireEvent.click(screen.getByRole("button", { name: /создать комнату/i }));
 
   return waitFor(() => {
-    expect(createRoomMock).toHaveBeenCalled();
+    expect(createRoomMock).toHaveBeenCalledWith({
+      name: "Room B",
+      model_name: "openai/gpt-5-image",
+      is_active: true
+    });
   });
 });

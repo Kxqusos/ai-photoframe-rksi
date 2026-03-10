@@ -65,8 +65,8 @@ def test_rooms_schema_postgres17_migration() -> None:
 
             default_room_slug = connection.execute(
                 sa.text("SELECT slug FROM rooms WHERE slug = :slug LIMIT 1"),
-                {"slug": "main"},
+                {"slug": "ph000000"},
             ).scalar_one_or_none()
-            assert default_room_slug == "main"
+            assert default_room_slug == "ph000000"
     finally:
         engine.dispose()

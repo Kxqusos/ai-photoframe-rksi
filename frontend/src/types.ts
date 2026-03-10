@@ -8,13 +8,19 @@ export type StylePrompt = {
 };
 
 export type JobCreated = {
-  id: number;
+  id: string;
   status: string;
 };
 
 export type Room = {
   id: number;
   slug: string;
+  name: string;
+  model_name: string;
+  is_active: boolean;
+};
+
+export type RoomCreatePayload = {
   name: string;
   model_name: string;
   is_active: boolean;
@@ -32,7 +38,7 @@ export type AdminToken = {
 };
 
 export type JobStatus = {
-  id: number;
+  id: string;
   status: "processing" | "completed" | "error" | string;
   result_url?: string | null;
   download_url?: string | null;

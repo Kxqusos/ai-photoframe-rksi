@@ -12,16 +12,16 @@ vi.mock("../lib/api", () => ({
 
 test("shows generated image and qr code when job completes", async () => {
   getJobStatusMock.mockResolvedValue({
-    id: 77,
+    id: "dddddddd",
     status: "completed",
-    result_url: "/qr/abc123",
-    download_url: "/qr/abc123",
-    qr_url: "/api/jobs/77/qr"
+    result_url: "/qr/dddddddd",
+    download_url: "/qr/dddddddd",
+    qr_url: "/api/jobs/hash/dddddddd/qr"
   });
 
-  render(<ResultPage roomSlug="room-a" jpgHash="77" />);
+  render(<ResultPage roomSlug="aaaaaaaa" jpgHash="dddddddd" />);
 
-  expect(getJobStatusMock).toHaveBeenCalledWith("room-a", "77");
+  expect(getJobStatusMock).toHaveBeenCalledWith("aaaaaaaa", "dddddddd");
 
   expect(await screen.findByAltText(/generated photo/i)).toBeInTheDocument();
   expect(screen.getByRole("main")).toHaveTextContent("Результат");
@@ -35,11 +35,11 @@ test("shows generated image and qr code when job completes", async () => {
 
 test("shows smooth indeterminate progress bar while image is processing", async () => {
   getJobStatusMock.mockResolvedValue({
-    id: 77,
+    id: "dddddddd",
     status: "processing"
   });
 
-  render(<ResultPage roomSlug="room-a" jpgHash="77" />);
+  render(<ResultPage roomSlug="aaaaaaaa" jpgHash="dddddddd" />);
 
   expect(await screen.findByText(/обработка изображения/i)).toBeInTheDocument();
   const progress = document.querySelector(".result-loading-bar__progress--indeterminate");

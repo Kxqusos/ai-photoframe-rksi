@@ -5,9 +5,12 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
+from app.hash_utils import DEFAULT_PUBLIC_ID
+from app.hash_utils import generate_public_id, is_public_id
+
 _BASE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_ROOM_ID = 1
-DEFAULT_ROOM_SLUG = "main"
+DEFAULT_ROOM_SLUG = DEFAULT_PUBLIC_ID
 DEFAULT_ROOM_NAME = "Main"
 DEFAULT_ROOM_MODEL = "openai/gpt-5-image"
 
@@ -68,6 +71,7 @@ def _migrate_rooms_schema() -> None:
             return
 
         _ensure_default_room_exists(connection)
+        _migrate_room_slugs_to_public_ids(connection)
         _migrate_room_id_column(connection, "prompts", "ix_prompts_room_id")
         _migrate_room_id_column(connection, "generation_jobs", "ix_generation_jobs_room_id")
 
@@ -107,6 +111,43 @@ def _ensure_default_room_exists(connection) -> None:
             "is_active": True,
         },
     )
+
+
+def _generate_unique_room_slug(used_slugs: set[str]) -> str:
+    while True:
+        candidate = generate_public_id()
+        if candidate not in used_slugs:
+            return candidate
+
+
+def _migrate_room_slugs_to_public_ids(connection) -> None:
+    rows = connection.execute(text("SELECT id, slug FROM rooms ORDER BY id ASC")).fetchall()
+    if not rows:
+        return
+
+    used_slugs: set[str] = set()
+    for row in rows:
+        slug = str(row[1] or "").strip().lower()
+        if is_public_id(slug):
+            used_slugs.add(slug)
+
+    for row in rows:
+        room_id = int(row[0])
+        current_slug = str(row[1] or "")
+        normalized = current_slug.strip().lower()
+
+        if is_public_id(normalized):
+            if normalized != current_slug:
+                connection.execute(text("UPDATE rooms SET slug = :slug WHERE id = :id"), {"slug": normalized, "id": room_id})
+            continue
+
+        if DEFAULT_ROOM_SLUG not in used_slugs and (room_id == DEFAULT_ROOM_ID or normalized == "main"):
+            new_slug = DEFAULT_ROOM_SLUG
+        else:
+            new_slug = _generate_unique_room_slug(used_slugs)
+
+        connection.execute(text("UPDATE rooms SET slug = :slug WHERE id = :id"), {"slug": new_slug, "id": room_id})
+        used_slugs.add(new_slug)
 
 
 def _migrate_room_id_column(connection, table_name: str, index_name: str) -> None:

@@ -409,10 +409,13 @@ button:disabled {
 }
 
 .capture-style-item__description {
+  min-width: 0;
   font-size: 0.75rem;
   color: #e2e8f0;
   line-height: 1.2;
   max-height: 2.4em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   overflow: hidden;
 }
 

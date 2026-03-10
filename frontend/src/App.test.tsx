@@ -29,7 +29,7 @@ vi.mock("./components/PublicRoomMenu", () => ({
 }));
 
 test("renders gallery page for /gallery pathname", () => {
-  window.history.pushState({}, "", "/room-a/gallery");
+  window.history.pushState({}, "", "/aaaaaaaa/gallery");
 
   render(<App />);
 
@@ -38,7 +38,7 @@ test("renders gallery page for /gallery pathname", () => {
 });
 
 test("renders result page for room result pathname", () => {
-  window.history.pushState({}, "", "/room-a/result/abc123");
+  window.history.pushState({}, "", "/aaaaaaaa/result/dddddddd");
 
   render(<App />);
 
@@ -54,13 +54,30 @@ test("renders admin login page for /admin/login", () => {
   expect(screen.getByText("admin-login-page")).toBeInTheDocument();
 });
 
+test("renders admin room editor page for slug route", () => {
+  window.history.pushState({}, "", "/admin/rooms/aaaaaaaa");
+
+  render(<App />);
+
+  expect(screen.getByText("admin-room-editor-page")).toBeInTheDocument();
+});
+
 test("renders public room menu on public routes", () => {
-  window.history.pushState({}, "", "/room-a");
+  window.history.pushState({}, "", "/aaaaaaaa");
 
   render(<App />);
 
   expect(screen.getByText("public-room-menu")).toBeInTheDocument();
   expect(screen.getByText("capture-page")).toBeInTheDocument();
+});
+
+test("does not expose /settings route and falls back to public capture page", () => {
+  window.history.pushState({}, "", "/settings");
+
+  render(<App />);
+
+  expect(screen.getByText("capture-page")).toBeInTheDocument();
+  expect(screen.queryByText("settings-page")).not.toBeInTheDocument();
 });
 
 test("updates rendered route after navigation event", async () => {

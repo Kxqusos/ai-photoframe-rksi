@@ -16,7 +16,7 @@ Set at least these variables in `backend/.env`:
 - `JWT_SECRET`
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD`
-- `DEFAULT_PUBLIC_ROOM_SLUG` (usually `main`)
+- `DEFAULT_PUBLIC_ROOM_SLUG` (8-char slug `[a-z0-9]`, default `ph000000`)
 
 Run API:
 ```bash
@@ -39,7 +39,7 @@ Frontend URL: `http://127.0.0.1:5173`
 ## 3) Quick Smoke Check
 1. Open `http://127.0.0.1:5173/admin/login` and sign in.
 2. Create room(s) in `/admin`.
-3. Open `/{room_slug}` (for example `/main`) and run generation.
+3. Open `/{room_slug}` (for example `/ph000000`) and run generation.
 4. Verify gallery isolation at `/{room_slug}/gallery`.
 
 ## Notes

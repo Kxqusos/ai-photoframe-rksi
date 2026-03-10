@@ -22,11 +22,11 @@ beforeEach(() => {
 
 test("opens dropdown menu from three-lines button and navigates to selected room", async () => {
   listPublicRoomsMock.mockResolvedValue([
-    { id: 1, slug: "main", name: "Main" },
-    { id: 2, slug: "room-a", name: "Room A" }
+    { id: 1, slug: "ph000000", name: "Main" },
+    { id: 2, slug: "aaaaaaaa", name: "Room A" }
   ]);
 
-  render(<PublicRoomMenu currentRoomSlug="main" />);
+  render(<PublicRoomMenu currentRoomSlug="ph000000" />);
 
   expect(screen.getByRole("button", { name: "Меню" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Комната")).not.toBeInTheDocument();
@@ -37,6 +37,6 @@ test("opens dropdown menu from three-lines button and navigates to selected room
     expect(screen.getByRole("option", { name: "Room A" })).toBeInTheDocument();
   });
 
-  fireEvent.change(screen.getByLabelText("Комната"), { target: { value: "room-a" } });
-  expect(navigateToMock).toHaveBeenCalledWith("/room-a");
+  fireEvent.change(screen.getByLabelText("Комната"), { target: { value: "aaaaaaaa" } });
+  expect(navigateToMock).toHaveBeenCalledWith("/aaaaaaaa");
 });

@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Path as FastapiPath, Response, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.hash_utils import PUBLIC_ID_PATTERN
 from app.job_service import get_or_create_default_room, get_room_by_slug
 from app.models import Prompt
 from app.schemas import PromptCreate, PromptOut
 
 router = APIRouter(prefix="/api/prompts", tags=["prompts"])
 room_router = APIRouter(prefix="/api/rooms/{room_slug}/prompts", tags=["prompts"])
+PublicIdPath = Annotated[str, FastapiPath(pattern=PUBLIC_ID_PATTERN)]
 
 
 @router.get("", response_model=list[PromptOut])
@@ -17,7 +21,7 @@ def list_prompts(db: Session = Depends(get_db)) -> list[Prompt]:
 
 
 @room_router.get("", response_model=list[PromptOut])
-def list_room_prompts(room_slug: str, db: Session = Depends(get_db)) -> list[Prompt]:
+def list_room_prompts(room_slug: PublicIdPath, db: Session = Depends(get_db)) -> list[Prompt]:
     room = get_room_by_slug(db, room_slug, active_only=True)
     if room is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="room not found")

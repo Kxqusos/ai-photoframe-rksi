@@ -7,11 +7,12 @@ import type {
   ModelSetting,
   PublicRoom,
   PromptCreate,
+  RoomCreatePayload,
   Room,
   StylePrompt
 } from "../types";
 import { loadAdminToken } from "./auth";
-import { DEFAULT_ROOM_SLUG, buildRoomApiPath, normalizeRoomSlug } from "./roomRouting";
+import { DEFAULT_ROOM_SLUG, buildRoomApiPath, normalizeResultHash, normalizeRoomSlug } from "./roomRouting";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const FALLBACK_STYLES: StylePrompt[] = [
@@ -102,17 +103,11 @@ export async function getJobStatus(jobId: number): Promise<JobStatus> {
 }
 
 export async function getRoomJobStatus(roomSlug: string, jobRef: string): Promise<JobStatus> {
-  const encoded = encodeURIComponent(jobRef);
-  const byIdResponse = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/${encoded}`)}`);
-  if (byIdResponse.ok) {
-    return (await byIdResponse.json()) as JobStatus;
+  const normalizedRef = normalizeResultHash(jobRef);
+  if (!normalizedRef) {
+    throw new Error("Invalid job reference");
   }
-
-  // Backward compatibility: support result URLs that still pass qr-hash in pathname.
-  if (byIdResponse.status !== 404 && byIdResponse.status !== 422) {
-    throw new Error("Failed to fetch generation status");
-  }
-
+  const encoded = encodeURIComponent(normalizedRef);
   const byHashResponse = await fetch(
     `${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/hash/${encoded}`)}`
   );
@@ -239,7 +234,7 @@ export async function listRooms(): Promise<Room[]> {
   return (await response.json()) as Room[];
 }
 
-export async function createRoom(payload: Omit<Room, "id">): Promise<Room> {
+export async function createRoom(payload: RoomCreatePayload): Promise<Room> {
   const response = await fetch(`${API_BASE}/api/admin/rooms`, {
     method: "POST",
     headers: requireAdminHeaders({ "Content-Type": "application/json" }),

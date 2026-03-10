@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 
 from fastapi.testclient import TestClient
 
@@ -14,9 +15,9 @@ def _reset_db() -> None:
 
 def _seed_rooms_and_prompts() -> dict[str, int]:
     with SessionLocal() as db:
-        room_main = Room(slug="main", name="Main", model_name="openai/gpt-5-image", is_active=True)
-        room_a = Room(slug="room-a", name="Room A", model_name="openai/gpt-5-image", is_active=True)
-        room_b = Room(slug="room-b", name="Room B", model_name="openai/gpt-5-image", is_active=True)
+        room_main = Room(slug="ph000000", name="Main", model_name="openai/gpt-5-image", is_active=True)
+        room_a = Room(slug="aaaaaaaa", name="Room A", model_name="openai/gpt-5-image", is_active=True)
+        room_b = Room(slug="bbbbbbbb", name="Room B", model_name="google/gemini-2.5-flash-image", is_active=True)
         db.add_all([room_main, room_a, room_b])
         db.commit()
         db.refresh(room_main)
@@ -57,7 +58,7 @@ def test_room_prompts_endpoint_returns_only_room_prompts() -> None:
     _seed_rooms_and_prompts()
     client = TestClient(app)
 
-    response = client.get("/api/rooms/room-a/prompts")
+    response = client.get("/api/rooms/aaaaaaaa/prompts")
 
     assert response.status_code == 200
     body = response.json()
@@ -71,7 +72,7 @@ def test_room_job_creation_rejects_prompt_from_another_room() -> None:
     client = TestClient(app)
 
     response = client.post(
-        "/api/rooms/room-a/jobs",
+        "/api/rooms/aaaaaaaa/jobs",
         files={"photo": ("photo.jpg", b"photo-bytes", "image/jpeg")},
         data={"prompt_id": str(ids["prompt_b_id"])},
     )
@@ -87,8 +88,8 @@ def test_room_gallery_endpoint_returns_only_room_results(monkeypatch, tmp_path: 
     monkeypatch.setattr("app.job_service.RESULT_DIR", result_root)
     client = TestClient(app)
 
-    room_a_dir = result_root / "room-room-a"
-    room_b_dir = result_root / "room-room-b"
+    room_a_dir = result_root / "room-aaaaaaaa"
+    room_b_dir = result_root / "room-bbbbbbbb"
     room_a_dir.mkdir(parents=True, exist_ok=True)
     room_b_dir.mkdir(parents=True, exist_ok=True)
 
@@ -104,21 +105,21 @@ def test_room_gallery_endpoint_returns_only_room_results(monkeypatch, tmp_path: 
                     prompt_id=ids["prompt_a_id"],
                     room_id=ids["room_a_id"],
                     status="completed",
-                    qr_hash="aaaaaaaaaaaaaaaa",
+                    qr_hash="aaaaaaaa",
                     result_path=str(file_a),
                 ),
                 GenerationJob(
                     prompt_id=ids["prompt_b_id"],
                     room_id=ids["room_b_id"],
                     status="completed",
-                    qr_hash="bbbbbbbbbbbbbbbb",
+                    qr_hash="bbbbbbbb",
                     result_path=str(file_b),
                 ),
             ]
         )
         db.commit()
 
-    response = client.get("/api/rooms/room-a/jobs/gallery")
+    response = client.get("/api/rooms/aaaaaaaa/jobs/gallery")
 
     assert response.status_code == 200
     body = response.json()
@@ -137,13 +138,13 @@ def test_room_hash_endpoint_enforces_room_ownership() -> None:
                 prompt_id=ids["prompt_a_id"],
                 room_id=ids["room_a_id"],
                 status="completed",
-                qr_hash="cccccccccccccccc",
+                qr_hash="cccccccc",
                 result_path="/tmp/job-c.jpg",
             )
         )
         db.commit()
 
-    response = client.get("/api/rooms/room-b/jobs/hash/cccccccccccccccc")
+    response = client.get("/api/rooms/bbbbbbbb/jobs/hash/cccccccc")
     assert response.status_code == 404
 
 
@@ -157,7 +158,7 @@ def test_room_job_status_by_id_returns_room_scoped_status() -> None:
             prompt_id=ids["prompt_a_id"],
             room_id=ids["room_a_id"],
             status="completed",
-            qr_hash="dddddddddddddddd",
+            qr_hash="dddddddd",
             result_path="/tmp/job-d.jpg",
         )
         db.add(job)
@@ -165,10 +166,48 @@ def test_room_job_status_by_id_returns_room_scoped_status() -> None:
         db.refresh(job)
         job_id = job.id
 
-    response = client.get(f"/api/rooms/room-a/jobs/{job_id}")
+    response = client.get(f"/api/rooms/aaaaaaaa/jobs/{job_id}")
     assert response.status_code == 200
-    assert response.json()["id"] == job_id
-    assert response.json()["qr_url"] == f"/api/rooms/room-a/jobs/{job_id}/qr"
+    assert response.json()["id"] == "dddddddd"
+    assert response.json()["qr_url"] == "/api/rooms/aaaaaaaa/jobs/hash/dddddddd/qr"
 
-    wrong_room = client.get(f"/api/rooms/room-b/jobs/{job_id}")
+    wrong_room = client.get(f"/api/rooms/bbbbbbbb/jobs/{job_id}")
     assert wrong_room.status_code == 404
+
+
+def test_room_job_generation_uses_room_model(monkeypatch) -> None:
+    _reset_db()
+    ids = _seed_rooms_and_prompts()
+    captured_models: list[str] = []
+
+    def fake_generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
+        captured_models.append(model)
+        return b"generated-image-bytes"
+
+    monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
+    client = TestClient(app)
+
+    created_a = client.post(
+        "/api/rooms/aaaaaaaa/jobs",
+        files={"photo": ("photo-a.jpg", b"photo-a", "image/jpeg")},
+        data={"prompt_id": str(ids["prompt_a_id"])},
+    )
+    assert created_a.status_code == 202
+
+    created_b = client.post(
+        "/api/rooms/bbbbbbbb/jobs",
+        files={"photo": ("photo-b.jpg", b"photo-b", "image/jpeg")},
+        data={"prompt_id": str(ids["prompt_b_id"])},
+    )
+    assert created_b.status_code == 202
+
+    for _ in range(30):
+        status_a = client.get(f"/api/rooms/aaaaaaaa/jobs/hash/{created_a.json()['id']}")
+        status_b = client.get(f"/api/rooms/bbbbbbbb/jobs/hash/{created_b.json()['id']}")
+        if status_a.status_code == 200 and status_b.status_code == 200:
+            if status_a.json()["status"] == "completed" and status_b.json()["status"] == "completed":
+                break
+        time.sleep(0.02)
+
+    assert "openai/gpt-5-image" in captured_models
+    assert "google/gemini-2.5-flash-image" in captured_models

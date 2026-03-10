@@ -12,7 +12,7 @@ def _reset_db() -> None:
     Base.metadata.create_all(bind=engine)
 
 
-def _create_completed_job(client: TestClient, monkeypatch) -> int:
+def _create_completed_job(client: TestClient, monkeypatch) -> str:
     created_prompt = client.post(
         "/api/prompts",
         json={
@@ -37,13 +37,13 @@ def _create_completed_job(client: TestClient, monkeypatch) -> int:
         data={"prompt_id": str(prompt_id)},
     )
     assert created_job.status_code == 202
-    job_id = created_job.json()["id"]
+    job_hash = created_job.json()["id"]
 
     for _ in range(30):
-        status = client.get(f"/api/jobs/{job_id}")
+        status = client.get(f"/api/jobs/hash/{job_hash}")
         assert status.status_code == 200
         if status.json()["status"] == "completed":
-            return job_id
+            return job_hash
         time.sleep(0.02)
 
     raise AssertionError("job did not reach completed status in time")
@@ -52,9 +52,9 @@ def _create_completed_job(client: TestClient, monkeypatch) -> int:
 def test_qr_endpoint_returns_png_for_completed_job(monkeypatch) -> None:
     _reset_db()
     client = TestClient(app)
-    job_id = _create_completed_job(client, monkeypatch)
+    job_hash = _create_completed_job(client, monkeypatch)
 
-    response = client.get(f"/api/jobs/{job_id}/qr")
+    response = client.get(f"/api/jobs/hash/{job_hash}/qr")
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/png"
     assert len(response.content) > 20
@@ -63,16 +63,16 @@ def test_qr_endpoint_returns_png_for_completed_job(monkeypatch) -> None:
 def test_legacy_download_endpoint_is_not_exposed(monkeypatch) -> None:
     _reset_db()
     client = TestClient(app)
-    job_id = _create_completed_job(client, monkeypatch)
+    job_hash = _create_completed_job(client, monkeypatch)
 
-    response = client.get(f"/api/jobs/{job_id}/download")
+    response = client.get(f"/api/jobs/hash/{job_hash}/download")
     assert response.status_code == 404
 
 
 def test_qr_always_uses_request_base_url(monkeypatch) -> None:
     _reset_db()
     client = TestClient(app)
-    job_id = _create_completed_job(client, monkeypatch)
+    job_hash = _create_completed_job(client, monkeypatch)
 
     captured: dict[str, str] = {}
 
@@ -82,11 +82,11 @@ def test_qr_always_uses_request_base_url(monkeypatch) -> None:
 
     monkeypatch.setattr("app.routers.jobs.build_qr_png", fake_build_qr_png)
 
-    response = client.get(f"/api/jobs/{job_id}/qr")
+    response = client.get(f"/api/jobs/hash/{job_hash}/qr")
     assert response.status_code == 200
     assert response.content == b"fake-png"
     with SessionLocal() as db:
-        job = db.get(GenerationJob, job_id)
+        job = db.query(GenerationJob).filter(GenerationJob.qr_hash == job_hash).first()
         assert job is not None
         assert job.qr_hash is not None
         assert captured["url"] == f"http://testserver/qr/{job.qr_hash}"
@@ -95,10 +95,10 @@ def test_qr_always_uses_request_base_url(monkeypatch) -> None:
 def test_public_qr_hash_endpoint_returns_file(monkeypatch) -> None:
     _reset_db()
     client = TestClient(app)
-    job_id = _create_completed_job(client, monkeypatch)
+    job_hash = _create_completed_job(client, monkeypatch)
 
     with SessionLocal() as db:
-        job = db.get(GenerationJob, job_id)
+        job = db.query(GenerationJob).filter(GenerationJob.qr_hash == job_hash).first()
         assert job is not None
         assert job.qr_hash is not None
         qr_hash = job.qr_hash

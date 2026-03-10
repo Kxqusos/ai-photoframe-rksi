@@ -19,38 +19,42 @@ beforeEach(() => {
 });
 
 describe("room-scoped public API client", () => {
-  test("builds room-scoped URLs for prompts/jobs/status-by-id/gallery", async () => {
+  test("builds room-scoped URLs for prompts/jobs/status-by-hash/gallery", async () => {
     fetchMock
       .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, status: "processing" }), { status: 202 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, status: "processing" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "dddddddd", status: "processing" }), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "dddddddd", status: "processing" }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
 
-    await listRoomPrompts("room-a");
-    await createRoomJob("room-a", new File([new Uint8Array([1, 2])], "photo.jpg", { type: "image/jpeg" }), 10);
-    await getRoomJobStatus("room-a", "1");
-    await listRoomGalleryResults("room-a");
+    await listRoomPrompts("aaaaaaaa");
+    await createRoomJob("aaaaaaaa", new File([new Uint8Array([1, 2])], "photo.jpg", { type: "image/jpeg" }), 10);
+    await getRoomJobStatus("aaaaaaaa", "dddddddd");
+    await listRoomGalleryResults("aaaaaaaa");
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("/api/rooms/room-a/prompts"));
+    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("/api/rooms/aaaaaaaa/prompts"));
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining("/api/rooms/room-a/jobs"),
+      expect.stringContaining("/api/rooms/aaaaaaaa/jobs"),
       expect.objectContaining({ method: "POST" })
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(3, expect.stringContaining("/api/rooms/room-a/jobs/1"));
-    expect(fetchMock).toHaveBeenNthCalledWith(4, expect.stringContaining("/api/rooms/room-a/jobs/gallery"));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("/api/rooms/aaaaaaaa/jobs/hash/dddddddd")
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(4, expect.stringContaining("/api/rooms/aaaaaaaa/jobs/gallery"));
   });
 
-  test("falls back to hash endpoint when status-by-id lookup is not found", async () => {
-    fetchMock
-      .mockResolvedValueOnce(new Response("{}", { status: 404 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 7, status: "completed" }), { status: 200 }));
+  test("requests status directly from hash endpoint", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ id: "abcd1234", status: "completed" }), { status: 200 }));
 
-    const status = await getRoomJobStatus("room-a", "abc123hash");
+    const status = await getRoomJobStatus("aaaaaaaa", "abcd1234");
     expect(status.status).toBe("completed");
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("/api/rooms/room-a/jobs/abc123hash"));
-    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining("/api/rooms/room-a/jobs/hash/abc123hash"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/api/rooms/aaaaaaaa/jobs/hash/abcd1234")
+    );
   });
 });
 
