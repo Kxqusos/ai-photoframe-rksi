@@ -1,5 +1,7 @@
 # API Contract
 
+Runtime entrypoint during the staged backend migration: `uv run uvicorn photoframe_backend.main:app --reload`
+
 ## Health
 - `GET /api/health` -> `{ "status": "ok" }`
 
