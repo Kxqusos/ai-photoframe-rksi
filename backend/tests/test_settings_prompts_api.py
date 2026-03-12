@@ -75,3 +75,12 @@ def test_get_model_returns_new_default_model() -> None:
     current = client.get("/api/settings/model")
     assert current.status_code == 200
     assert current.json()["model_name"] == "openai/gpt-5-image"
+
+
+def test_schema_compat_module_reexports_src_api_models() -> None:
+    import app.schemas as legacy_schemas
+    from photoframe_backend.api.http.schemas.admin import RoomCreate
+    from photoframe_backend.api.http.schemas.public import ModelSettingIn
+
+    assert legacy_schemas.RoomCreate is RoomCreate
+    assert legacy_schemas.ModelSettingIn is ModelSettingIn

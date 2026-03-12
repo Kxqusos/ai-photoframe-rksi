@@ -18,10 +18,10 @@ def _configure_admin_credentials(monkeypatch) -> tuple[str, str]:
     username = "admin"
     password = "super-secret-password"
 
-    monkeypatch.setattr(settings, "admin_username", username)
-    monkeypatch.setattr(settings, "admin_password", password)
-    monkeypatch.setattr(settings, "jwt_secret", "test-jwt-secret-with-at-least-32-bytes")
-    monkeypatch.setattr(settings, "jwt_expire_minutes", 60)
+    monkeypatch.setattr(settings.auth, "admin_username", username)
+    monkeypatch.setattr(settings.auth, "admin_password", password)
+    monkeypatch.setattr(settings.auth, "jwt_secret", "test-jwt-secret-with-at-least-32-bytes")
+    monkeypatch.setattr(settings.auth, "jwt_expire_minutes", 60)
     return username, password
 
 
@@ -131,8 +131,8 @@ def test_admin_room_media_uploads_are_room_scoped(monkeypatch, tmp_path: Path) -
 
     preview_dir = tmp_path / "previews"
     icon_dir = tmp_path / "icons"
-    monkeypatch.setattr("app.routers.media.PREVIEW_DIR", preview_dir)
-    monkeypatch.setattr("app.routers.media.ICON_DIR", icon_dir)
+    monkeypatch.setattr("photoframe_backend.api.http.routers.media.PREVIEW_DIR", preview_dir)
+    monkeypatch.setattr("photoframe_backend.api.http.routers.media.ICON_DIR", icon_dir)
 
     room = client.post(
         "/api/admin/rooms",
@@ -189,3 +189,14 @@ def test_admin_room_auto_generates_slug_when_missing(monkeypatch) -> None:
     assert created.status_code == 201
     body = created.json()
     assert re.fullmatch(r"[a-z0-9]{8}", body["slug"])
+
+
+def test_admin_router_is_sourced_from_src_api_layer() -> None:
+    from photoframe_backend.api.http.routers.admin import router as src_admin_router
+    from photoframe_backend.main import app as src_app
+
+    route_paths = {route.path for route in src_admin_router.routes}
+    app_paths = {route.path for route in src_app.routes}
+
+    assert "/api/admin/rooms" in route_paths
+    assert route_paths <= app_paths

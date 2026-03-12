@@ -80,7 +80,7 @@ def test_qr_always_uses_request_base_url(monkeypatch) -> None:
         captured["url"] = url
         return b"fake-png"
 
-    monkeypatch.setattr("app.routers.jobs.build_qr_png", fake_build_qr_png)
+    monkeypatch.setattr("photoframe_backend.api.http.routers.jobs.build_qr_png", fake_build_qr_png)
 
     response = client.get(f"/api/jobs/hash/{job_hash}/qr")
     assert response.status_code == 200

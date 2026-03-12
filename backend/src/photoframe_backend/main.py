@@ -3,10 +3,11 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.auth import router as admin_auth_router
 from app.config import settings
-from app.db import init_db
-from app.routers import admin, jobs, media, prompts, rooms, settings as settings_router
+from app.db import DATABASE_URL, DEFAULT_ROOM_SLUG, engine
+from photoframe_backend.api.http.routers import admin, jobs, media, prompts, rooms, settings as settings_router
+from photoframe_backend.api.http.routers.auth import router as admin_auth_router
+from photoframe_backend.infrastructure.db.bootstrap import bootstrap_default_room
 from photoframe_backend.shared.logging import configure_logging
 
 app = FastAPI(title=settings.app_name)
@@ -15,7 +16,7 @@ app = FastAPI(title=settings.app_name)
 @app.on_event("startup")
 def on_startup() -> None:
     configure_logging()
-    init_db()
+    bootstrap_default_room(engine=engine, database_url=DATABASE_URL, default_room_slug=DEFAULT_ROOM_SLUG)
 
 
 @app.get("/api/health")
