@@ -53,7 +53,12 @@ All endpoints below require `Authorization: Bearer <token>`.
   - `model_name`
   - `is_active`
   - `slug` (optional; when omitted, backend auto-generates an 8-char slug `[a-z0-9]`)
-- `PUT /api/admin/rooms/{room_id}` with same JSON fields as create.
+- `PATCH /api/admin/rooms/{room_id}` with any subset of:
+  - `slug`
+  - `name`
+  - `model_name`
+  - `is_active`
+- `DELETE /api/admin/rooms/{room_id}` for empty non-default rooms.
 - `PUT /api/admin/rooms/{room_id}/model` with JSON `{ "model_name": "..." }`.
 - `GET /api/admin/rooms/{room_id}/prompts`
 - `POST /api/admin/rooms/{room_id}/prompts`

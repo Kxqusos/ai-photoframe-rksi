@@ -16,7 +16,8 @@ def test_docs_cover_room_and_admin_contract() -> None:
     assert "POST /api/admin/auth/login" in api_contract
     assert "GET /api/admin/auth/me" in api_contract
     assert "GET /api/admin/rooms" in api_contract
-    assert "PUT /api/admin/rooms/{room_id}" in api_contract
+    assert "PATCH /api/admin/rooms/{room_id}" in api_contract
+    assert "DELETE /api/admin/rooms/{room_id}" in api_contract
     assert "PUT /api/admin/rooms/{room_id}/model" in api_contract
 
     assert "AUTH__ADMIN_USERNAME" in backend_env

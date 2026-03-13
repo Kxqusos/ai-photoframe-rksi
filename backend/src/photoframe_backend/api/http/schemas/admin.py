@@ -23,6 +23,13 @@ class RoomUpdate(BaseModel):
     is_active: bool
 
 
+class RoomPatch(BaseModel):
+    slug: PublicId | None = None
+    name: str | None = None
+    model_name: str | None = None
+    is_active: bool | None = None
+
+
 class RoomModelUpdate(BaseModel):
     model_name: str
 
@@ -45,6 +52,7 @@ __all__ = [
     "PromptCreate",
     "PromptOut",
     "RoomCreate",
+    "RoomPatch",
     "RoomModelUpdate",
     "RoomOut",
     "RoomUpdate",

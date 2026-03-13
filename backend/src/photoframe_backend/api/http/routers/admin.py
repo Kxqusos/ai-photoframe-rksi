@@ -4,15 +4,17 @@ from sqlalchemy.orm import Session
 
 from photoframe_backend.api.http.dependencies import DbSession, require_admin
 from photoframe_backend.api.http.routers.media import save_prompt_icon, save_prompt_preview
+from photoframe_backend.api.http.security import settings
 from photoframe_backend.api.http.schemas.admin import (
     PromptCreate,
     PromptOut,
     RoomCreate,
+    RoomPatch,
     RoomModelUpdate,
     RoomOut,
     RoomUpdate,
 )
-from photoframe_backend.infrastructure.db.models import Prompt, Room
+from photoframe_backend.infrastructure.db.models import GenerationJob, Prompt, Room
 from photoframe_backend.shared.public_ids import generate_public_id
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -68,6 +70,47 @@ def update_room(room_id: int, payload: RoomUpdate, db: DbSession) -> Room:
     db.commit()
     db.refresh(room)
     return room
+
+
+@router.patch("/rooms/{room_id}", response_model=RoomOut)
+def patch_room(room_id: int, payload: RoomPatch, db: DbSession) -> Room:
+    room = _get_room_or_404(db, room_id)
+
+    if payload.slug is not None:
+        duplicate = db.query(Room).filter(Room.slug == payload.slug, Room.id != room_id).first()
+        if duplicate is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="room slug already exists")
+        room.slug = payload.slug
+    if payload.name is not None:
+        room.name = payload.name
+    if payload.model_name is not None:
+        room.model_name = payload.model_name
+    if payload.is_active is not None:
+        room.is_active = payload.is_active
+
+    db.add(room)
+    db.commit()
+    db.refresh(room)
+    return room
+
+
+@router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_room(room_id: int, db: DbSession) -> Response:
+    room = _get_room_or_404(db, room_id)
+
+    if room.slug == settings.app.default_public_room_slug:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="default room cannot be deleted")
+    if db.query(Prompt.id).filter(Prompt.room_id == room_id).first() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="room cannot be deleted while prompts exist")
+    if db.query(GenerationJob.id).filter(GenerationJob.room_id == room_id).first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="room cannot be deleted while generation jobs exist",
+        )
+
+    db.delete(room)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/rooms/{room_id}/model", response_model=RoomOut)

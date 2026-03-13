@@ -55,7 +55,7 @@ def test_admin_rooms_crud_and_model_update_requires_jwt(monkeypatch) -> None:
     assert listed.status_code == 200
     assert any(room["slug"] == "aaaaaaaa" for room in listed.json())
 
-    updated = client.put(
+    updated = client.patch(
         f"/api/admin/rooms/{room_id}",
         headers=headers,
         json={"slug": "aaaaaaaa", "name": "Room A Updated", "model_name": "openai/gpt-5-image", "is_active": False},
@@ -71,6 +71,82 @@ def test_admin_rooms_crud_and_model_update_requires_jwt(monkeypatch) -> None:
     )
     assert model_updated.status_code == 200
     assert model_updated.json()["model_name"] == "google/gemini-2.5-flash-image"
+
+
+def test_admin_room_delete_removes_room(monkeypatch) -> None:
+    _reset_db()
+    username, password = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+    token = _get_admin_token(client, username, password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/api/admin/rooms",
+        headers=headers,
+        json={"slug": "dddddddd", "name": "Room D", "model_name": "openai/gpt-5-image", "is_active": True},
+    )
+    assert created.status_code == 201
+    room_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/admin/rooms/{room_id}", headers=headers)
+    assert deleted.status_code == 204
+
+    listed = client.get("/api/admin/rooms", headers=headers)
+    assert listed.status_code == 200
+    assert all(room["id"] != room_id for room in listed.json())
+
+
+def test_admin_room_delete_rejects_default_room(monkeypatch) -> None:
+    _reset_db()
+    username, password = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+    token = _get_admin_token(client, username, password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/api/admin/rooms",
+        headers=headers,
+        json={"slug": "ph000000", "name": "Main", "model_name": "openai/gpt-5-image", "is_active": True},
+    )
+    assert created.status_code == 201
+    room_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/admin/rooms/{room_id}", headers=headers)
+    assert deleted.status_code == 409
+    assert deleted.json()["detail"] == "default room cannot be deleted"
+
+
+def test_admin_room_delete_rejects_room_with_prompts(monkeypatch) -> None:
+    _reset_db()
+    username, password = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+    token = _get_admin_token(client, username, password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/api/admin/rooms",
+        headers=headers,
+        json={"slug": "eeeeeeee", "name": "Room E", "model_name": "openai/gpt-5-image", "is_active": True},
+    )
+    assert created.status_code == 201
+    room_id = created.json()["id"]
+
+    prompt_created = client.post(
+        f"/api/admin/rooms/{room_id}/prompts",
+        headers=headers,
+        json={
+            "name": "Prompt E",
+            "description": "desc",
+            "prompt": "prompt body",
+            "preview_image_url": "/media/previews/e.jpg",
+            "icon_image_url": "/media/icons/e.png",
+        },
+    )
+    assert prompt_created.status_code == 201
+
+    deleted = client.delete(f"/api/admin/rooms/{room_id}", headers=headers)
+    assert deleted.status_code == 409
+    assert deleted.json()["detail"] == "room cannot be deleted while prompts exist"
 
 
 def test_admin_room_prompt_endpoints_are_scoped(monkeypatch) -> None:
