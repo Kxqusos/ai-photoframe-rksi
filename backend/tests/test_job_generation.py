@@ -6,10 +6,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.db import Base, SessionLocal, engine
-from app.job_service import DEFAULT_MODEL_NAME, LEGACY_MODEL_NAME, LEGACY_OPENAI_MODEL_NAME
-from app.main import app
-from app.models import GenerationJob, Room
+from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.session import SessionLocal, engine
+from photoframe_backend.application.services.job_runtime import DEFAULT_MODEL_NAME, LEGACY_MODEL_NAME, LEGACY_OPENAI_MODEL_NAME
+from photoframe_backend.main import app
+from photoframe_backend.infrastructure.db.models import GenerationJob, Room
 
 
 def _reset_db() -> None:
@@ -35,8 +36,8 @@ def _patch_storage_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tupl
     result_dir = tmp_path / "results"
     source_dir.mkdir(parents=True, exist_ok=True)
     result_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("app.job_service.SOURCE_DIR", source_dir)
-    monkeypatch.setattr("app.job_service.RESULT_DIR", result_dir)
+    monkeypatch.setattr("photoframe_backend.application.services.job_runtime.SOURCE_DIR", source_dir)
+    monkeypatch.setattr("photoframe_backend.application.services.job_runtime.RESULT_DIR", result_dir)
     return source_dir, result_dir
 
 
@@ -49,7 +50,7 @@ def test_create_job_and_get_completed_result(monkeypatch) -> None:
         assert image_bytes == b"source-image"
         return b"generated-image-bytes"
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", fake_generate_image)
 
     client = TestClient(app)
     prompt_id = _create_prompt(client)
@@ -84,10 +85,35 @@ def test_create_job_and_get_completed_result(monkeypatch) -> None:
         assert job.result_path.endswith(".jpg")
 
 
+def test_job_service_rejects_missing_room(monkeypatch) -> None:
+    from photoframe_backend.application.services.job_service import JobService
+    from photoframe_backend.infrastructure.db.repositories.jobs import SqlAlchemyJobRepository
+    from photoframe_backend.infrastructure.db.repositories.prompts import SqlAlchemyPromptRepository
+    from photoframe_backend.infrastructure.db.repositories.rooms import SqlAlchemyRoomRepository
+
+    _reset_db()
+    client = TestClient(app)
+    prompt_id = _create_prompt(client)
+
+    with SessionLocal() as db:
+        service = JobService(
+            room_repository=SqlAlchemyRoomRepository(db),
+            prompt_repository=SqlAlchemyPromptRepository(db),
+            job_repository=SqlAlchemyJobRepository(db, source_dir=Path("/tmp")),
+        )
+
+        try:
+            service.create_processing_job(prompt_id=prompt_id, room_slug="zzzzzzzz", source_bytes=b"source-image")
+        except ValueError as exc:
+            assert str(exc) == "room not found"
+        else:
+            raise AssertionError("expected missing room failure")
+
+
 def test_create_job_returns_processing_status_immediately(monkeypatch) -> None:
     _reset_db()
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
 
     client = TestClient(app)
     prompt_id = _create_prompt(client)
@@ -109,7 +135,7 @@ def test_create_job_uses_saved_model_setting(monkeypatch) -> None:
         captured["model"] = model
         return b"generated-image-bytes"
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", fake_generate_image)
 
     client = TestClient(app)
     prompt_id = _create_prompt(client)
@@ -140,7 +166,7 @@ def test_create_job_uses_default_room_model_when_it_differs_from_legacy_setting(
         captured["model"] = model
         return b"generated-image-bytes"
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", fake_generate_image)
 
     client = TestClient(app)
     prompt_id = _create_prompt(client)
@@ -179,7 +205,7 @@ def test_create_job_falls_back_from_legacy_model(monkeypatch, legacy_model: str)
         captured["model"] = model
         return b"generated-image-bytes"
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", fake_generate_image)
 
     client = TestClient(app)
     prompt_id = _create_prompt(client)
@@ -206,7 +232,7 @@ def test_create_job_removes_source_photo_after_processing(monkeypatch, tmp_path:
     _reset_db()
     source_dir, _ = _patch_storage_dirs(monkeypatch, tmp_path)
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
 
     client = TestClient(app)
     prompt_id = _create_prompt(client)
@@ -250,7 +276,7 @@ def test_create_job_removes_results_older_than_retention_days(monkeypatch, tmp_p
     fresh_timestamp = time.time() - (2 * 24 * 60 * 60)
     os.utime(fresh, (fresh_timestamp, fresh_timestamp))
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
 
     client = TestClient(app)
     prompt_id = _create_prompt(client)
@@ -296,7 +322,7 @@ def test_create_job_keeps_all_recent_results_within_retention_days(monkeypatch, 
         timestamp = now - (12 - idx) * 60
         os.utime(existing, (timestamp, timestamp))
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
 
     client = TestClient(app)
     prompt_id = _create_prompt(client)

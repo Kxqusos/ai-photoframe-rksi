@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.main import app
+from photoframe_backend.main import app
 
 
 def test_upload_prompt_preview_image() -> None:

@@ -2,8 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.hash_utils import generate_public_id
-from app.models import Prompt, Room
 from photoframe_backend.api.http.dependencies import DbSession, require_admin
 from photoframe_backend.api.http.routers.media import save_prompt_icon, save_prompt_preview
 from photoframe_backend.api.http.schemas.admin import (
@@ -14,6 +12,8 @@ from photoframe_backend.api.http.schemas.admin import (
     RoomOut,
     RoomUpdate,
 )
+from photoframe_backend.infrastructure.db.models import Prompt, Room
+from photoframe_backend.shared.public_ids import generate_public_id
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 

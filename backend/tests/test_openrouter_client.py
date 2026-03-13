@@ -4,7 +4,7 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
-from app import openrouter_client
+from photoframe_backend.infrastructure.clients import openrouter_client
 
 
 class _FakeResponse:
@@ -67,9 +67,9 @@ def test_generate_image_recovers_when_openai_was_missing_during_module_import(mo
         )
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", None)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", None)
     monkeypatch.setattr(
-        "app.openrouter_client._load_openai_client_class",
+        "photoframe_backend.infrastructure.clients.openrouter_client._load_openai_client_class",
         lambda: fake_openai,
         raising=False,
     )
@@ -114,7 +114,7 @@ def test_generate_image_uses_openai_sdk_client_with_openrouter_base_url(monkeypa
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("OPENROUTER_HTTP_REFERER", "https://photoframe.local")
     monkeypatch.setenv("OPENROUTER_X_TITLE", "AI Photoframe")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", fake_openai)
 
     result = openrouter_client.generate_image(
         model="openai/gpt-image-1",
@@ -169,7 +169,7 @@ def test_generate_image_supports_camel_case_image_url(monkeypatch) -> None:
         )
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", fake_openai)
 
     result = openrouter_client.generate_image(
         model="openai/gpt-image-1",
@@ -205,7 +205,7 @@ def test_generate_image_converts_png_payload_to_jpeg(monkeypatch) -> None:
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("OPENROUTER_RESULT_FORMAT", "jpeg")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", fake_openai)
 
     result = openrouter_client.generate_image(
         model="openai/gpt-image-1",
@@ -247,7 +247,7 @@ def test_generate_image_resizes_large_input_before_request(monkeypatch) -> None:
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("OPENROUTER_SOURCE_MAX_SIDE", "1280")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", fake_openai)
 
     openrouter_client.generate_image(
         model="openai/gpt-image-1",
@@ -267,7 +267,7 @@ def test_generate_image_raises_if_response_has_no_images(monkeypatch) -> None:
         return _FakeOpenAIClient([], payload={"choices": [{"message": {}}]})
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", fake_openai)
 
     with pytest.raises(RuntimeError, match="OpenRouter response does not contain image data"):
         openrouter_client.generate_image(
@@ -311,7 +311,7 @@ def test_generate_image_retries_until_response_has_images(monkeypatch) -> None:
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("OPENROUTER_MISSING_IMAGE_RETRIES", "3")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", fake_openai)
 
     result = openrouter_client.generate_image(
         model="openai/gpt-image-1",
@@ -337,7 +337,7 @@ def test_generate_image_includes_error_details_on_bad_request(monkeypatch) -> No
         return _FakeOpenAIClient([], error=error)
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", fake_openai)
 
     with pytest.raises(RuntimeError, match="No endpoints found for openai/gpt-image-1"):
         openrouter_client.generate_image(
@@ -381,7 +381,7 @@ def test_generate_image_retries_on_missing_image_error_message(monkeypatch) -> N
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("OPENROUTER_MISSING_IMAGE_RETRIES", "2")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", fake_openai)
 
     result = openrouter_client.generate_image(
         model="openai/gpt-image-1",
@@ -395,12 +395,12 @@ def test_generate_image_retries_on_missing_image_error_message(monkeypatch) -> N
 
 def test_generate_image_reports_runtime_interpreter_when_openai_is_missing(monkeypatch) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr("app.openrouter_client.OpenAI", None)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.OpenAI", None)
 
     def fail_import(name: str):
         raise ModuleNotFoundError("No module named 'openai'")
 
-    monkeypatch.setattr("app.openrouter_client.importlib.import_module", fail_import)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.importlib.import_module", fail_import)
 
     with pytest.raises(RuntimeError, match="runtime interpreter"):
         openrouter_client.generate_image(

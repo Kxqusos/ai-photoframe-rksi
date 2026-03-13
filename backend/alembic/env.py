@@ -6,9 +6,10 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.db import Base, _resolve_database_url
+from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.session import _resolve_database_url
 
-import app.models  # noqa: F401
+import photoframe_backend.infrastructure.db.models  # noqa: F401
 
 config = context.config
 

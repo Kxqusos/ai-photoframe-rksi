@@ -1,42 +1,27 @@
-name: ai-photoframe
-
 services:
+  postgres:
+    extends:
+      file: deploy/compose/docker-compose.dev.yml
+      service: postgres
+
   backend:
-    build:
-      context: .
-      dockerfile: deploy/backend.Dockerfile
-    env_file:
-      - ./backend/.env
-    environment:
-      DATABASE_URL: sqlite:////data/photoframe.db
-      LOG_FILE_PATH: /app/backend/logs/backend.log
-    ports:
-      - "18081:8000"
-    volumes:
-      - backend_data:/data
-      - ./backend/storage:/app/backend/storage
-      - backend_logs:/app/backend/logs
-    restart: unless-stopped
+    extends:
+      file: deploy/compose/docker-compose.dev.yml
+      service: backend
 
   frontend:
-    build:
-      context: .
-      dockerfile: deploy/frontend.Dockerfile
-    expose:
-      - "4173"
-    restart: unless-stopped
+    extends:
+      file: deploy/compose/docker-compose.dev.yml
+      service: frontend
 
   nginx:
-    image: nginx:1.27-alpine
-    depends_on:
-      - backend
-      - frontend
-    ports:
-      - "18080:80"
-    volumes:
-      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    restart: unless-stopped
+    extends:
+      file: deploy/compose/docker-compose.dev.yml
+      service: nginx
 
 volumes:
-  backend_data:
+  postgres_data:
+  backend_storage:
   backend_logs:
+  backend_venv:
+  frontend_node_modules:

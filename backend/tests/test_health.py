@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.main import app
+from photoframe_backend.main import app
 
 
 def test_src_entrypoint_exposes_app():
@@ -9,16 +9,18 @@ def test_src_entrypoint_exposes_app():
     assert src_app is app
 
 
-def test_src_entrypoint_runs_db_init_on_startup(monkeypatch):
+def test_src_entrypoint_bootstraps_default_room_on_startup(monkeypatch):
     import photoframe_backend.main as main_module
 
     called = False
 
-    def fake_init_db() -> None:
+    def fake_bootstrap_default_room(*, engine, database_url: str, default_room_slug: str) -> None:
         nonlocal called
+        assert database_url
+        assert default_room_slug
         called = True
 
-    monkeypatch.setattr(main_module, "init_db", fake_init_db)
+    monkeypatch.setattr(main_module, "bootstrap_default_room", fake_bootstrap_default_room)
 
     with TestClient(main_module.app):
         pass

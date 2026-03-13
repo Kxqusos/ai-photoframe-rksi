@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from app.models import Room
 from photoframe_backend.api.http.dependencies import DbSession
 from photoframe_backend.api.http.schemas.public import PublicRoomOut
+from photoframe_backend.infrastructure.db.models import Room
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 

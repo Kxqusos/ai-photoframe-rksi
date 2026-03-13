@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 
-from app.job_service import get_or_create_default_room
-from app.models import ModelSetting
 from photoframe_backend.api.http.dependencies import DbSession
 from photoframe_backend.api.http.schemas.public import ModelSettingIn, ModelSettingOut
+from photoframe_backend.application.services.job_runtime import get_or_create_default_room
+from photoframe_backend.infrastructure.db.models import ModelSetting
 
 DEFAULT_MODEL_NAME = "openai/gpt-5-image"
 LEGACY_MODEL_NAME = "google/gemini-2.5-flash-image-preview"

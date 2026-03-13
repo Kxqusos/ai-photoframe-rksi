@@ -3,9 +3,10 @@ import time
 
 from fastapi.testclient import TestClient
 
-from app.db import Base, SessionLocal, engine
-from app.main import app
-from app.models import GenerationJob, Prompt, Room
+from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.session import SessionLocal, engine
+from photoframe_backend.main import app
+from photoframe_backend.infrastructure.db.models import GenerationJob, Prompt, Room
 
 
 def _reset_db() -> None:
@@ -85,7 +86,7 @@ def test_room_gallery_endpoint_returns_only_room_results(monkeypatch, tmp_path: 
     _reset_db()
     ids = _seed_rooms_and_prompts()
     result_root = tmp_path / "results"
-    monkeypatch.setattr("app.job_service.RESULT_DIR", result_root)
+    monkeypatch.setattr("photoframe_backend.application.services.job_runtime.RESULT_DIR", result_root)
     client = TestClient(app)
 
     room_a_dir = result_root / "room-aaaaaaaa"
@@ -184,7 +185,7 @@ def test_room_job_generation_uses_room_model(monkeypatch) -> None:
         captured_models.append(model)
         return b"generated-image-bytes"
 
-    monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", fake_generate_image)
     client = TestClient(app)
 
     created_a = client.post(

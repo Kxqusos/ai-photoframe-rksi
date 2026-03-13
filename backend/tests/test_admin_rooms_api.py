@@ -3,8 +3,9 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.db import Base, engine
-from app.main import app
+from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.session import engine
+from photoframe_backend.main import app
 
 
 def _reset_db() -> None:
@@ -13,7 +14,7 @@ def _reset_db() -> None:
 
 
 def _configure_admin_credentials(monkeypatch) -> tuple[str, str]:
-    from app.auth import settings
+    from photoframe_backend.api.http.security import settings
 
     username = "admin"
     password = "super-secret-password"

@@ -1,8 +1,9 @@
 from fastapi.testclient import TestClient
 
-from app.db import Base, SessionLocal, engine
-from app.main import app
-from app.models import Room
+from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.session import SessionLocal, engine
+from photoframe_backend.main import app
+from photoframe_backend.infrastructure.db.models import Room
 
 
 def _reset_db() -> None:
@@ -30,3 +31,17 @@ def test_list_public_rooms_returns_only_active_rooms() -> None:
     body = response.json()
     assert [row["slug"] for row in body] == ["ph000000", "aaaaaaaa"]
     assert set(body[0].keys()) == {"id", "slug", "name"}
+
+
+def test_room_service_creates_default_room_when_missing() -> None:
+    from photoframe_backend.application.services.room_service import RoomService
+    from photoframe_backend.infrastructure.db.repositories.rooms import SqlAlchemyRoomRepository
+
+    _reset_db()
+    with SessionLocal() as db:
+        service = RoomService(SqlAlchemyRoomRepository(db))
+        room = service.get_or_create_default_room()
+
+        assert room.slug == "ph000000"
+        assert room.name == "Main"
+        assert room.is_active is True

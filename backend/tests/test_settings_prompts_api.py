@@ -1,7 +1,8 @@
 from fastapi.testclient import TestClient
 
-from app.db import Base, engine
-from app.main import app
+from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.session import engine
+from photoframe_backend.main import app
 
 
 def _reset_db() -> None:
@@ -78,7 +79,7 @@ def test_get_model_returns_new_default_model() -> None:
 
 
 def test_schema_compat_module_reexports_src_api_models() -> None:
-    import app.schemas as legacy_schemas
+    import photoframe_backend.api.http.schemas as legacy_schemas
     from photoframe_backend.api.http.schemas.admin import RoomCreate
     from photoframe_backend.api.http.schemas.public import ModelSettingIn
 

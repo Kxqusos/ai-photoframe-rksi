@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from app.hash_utils import PUBLIC_ID_PATTERN
+from photoframe_backend.shared.public_ids import PUBLIC_ID_PATTERN
 
 PublicId = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=PUBLIC_ID_PATTERN)]
 

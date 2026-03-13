@@ -4,8 +4,9 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
 
-from app.db import SessionLocal
-from app.job_service import (
+from photoframe_backend.api.http.dependencies import DbSession, PublicIdPath
+from photoframe_backend.api.http.schemas.public import GalleryImageOut, JobCreated, JobStatusOut
+from photoframe_backend.application.services.job_runtime import (
     create_processing_job,
     get_completed_job_by_qr_hash,
     get_completed_job_or_404,
@@ -16,10 +17,9 @@ from app.job_service import (
     list_gallery_results,
     run_generation_sync,
 )
-from app.models import Prompt
-from app.qr_service import build_qr_png
-from photoframe_backend.api.http.dependencies import DbSession, PublicIdPath
-from photoframe_backend.api.http.schemas.public import GalleryImageOut, JobCreated, JobStatusOut
+from photoframe_backend.infrastructure.db.models import Prompt
+from photoframe_backend.infrastructure.db.session import SessionLocal
+from photoframe_backend.shared.qr import build_qr_png
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 room_router = APIRouter(prefix="/api/rooms/{room_slug}/jobs", tags=["jobs"])

@@ -2,9 +2,10 @@ import time
 
 from fastapi.testclient import TestClient
 
-from app.db import Base, SessionLocal, engine
-from app.main import app
-from app.models import GenerationJob
+from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.session import SessionLocal, engine
+from photoframe_backend.main import app
+from photoframe_backend.infrastructure.db.models import GenerationJob
 
 
 def _reset_db() -> None:
@@ -27,7 +28,7 @@ def _create_completed_job(client: TestClient, monkeypatch) -> str:
     prompt_id = created_prompt.json()["id"]
 
     monkeypatch.setattr(
-        "app.openrouter_client.generate_image",
+        "photoframe_backend.infrastructure.clients.openrouter_client.generate_image",
         lambda **kwargs: b"generated-png-bytes",
     )
 

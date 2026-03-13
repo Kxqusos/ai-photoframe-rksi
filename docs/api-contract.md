@@ -1,6 +1,6 @@
 # API Contract
 
-Runtime entrypoint during the staged backend migration: `uv run uvicorn photoframe_backend.main:app --reload`
+Runtime entrypoint: `uv run uvicorn photoframe_backend.main:app --reload`
 
 ## Health
 - `GET /api/health` -> `{ "status": "ok" }`
@@ -30,7 +30,7 @@ Runtime entrypoint during the staged backend migration: `uv run uvicorn photofra
 - `GET /api/jobs/hash/{jpg_hash}/qr`
 - `GET /api/jobs/gallery`
 
-These wrappers resolve to the default public room and are kept for backward compatibility during migration.
+These wrappers resolve to the default public room and are kept for backward compatibility.
 
 ## Admin Auth (JWT Bearer)
 - `POST /api/admin/auth/login` with JSON:
