@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import runpy
+import importlib.util
 
 from alembic import command
 from alembic.config import Config
@@ -19,6 +20,21 @@ def _build_alembic_config(database_url: str) -> Config:
     config.set_main_option("script_location", str(backend_dir / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
     return config
+
+
+def test_alembic_revision_ids_fit_version_table_limit() -> None:
+    versions_dir = Path(__file__).resolve().parents[1] / "alembic" / "versions"
+
+    for path in versions_dir.glob("*.py"):
+        if path.name == "__init__.py":
+            continue
+        spec = importlib.util.spec_from_file_location(path.stem, path)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        revision = getattr(module, "revision", None)
+        assert revision is not None
+        assert len(revision) <= 32, f"{path.name} revision exceeds alembic_version.version_num limit"
 
 
 def test_app_startup_does_not_run_schema_mutation(monkeypatch, tmp_path: Path) -> None:
