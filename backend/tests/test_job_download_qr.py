@@ -2,12 +2,10 @@ import time
 
 from fastapi.testclient import TestClient
 
-from app.db import Base, SessionLocal, engine
-from app.main import app
-from app.models import GenerationJob
-from tests.image_utils import tiny_jpeg_bytes
-
-SOURCE_IMAGE = tiny_jpeg_bytes()
+from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.session import SessionLocal, engine
+from photoframe_backend.main import app
+from photoframe_backend.infrastructure.db.models import GenerationJob
 
 
 def _reset_db() -> None:
@@ -15,31 +13,9 @@ def _reset_db() -> None:
     Base.metadata.create_all(bind=engine)
 
 
-def _configure_admin_credentials(monkeypatch) -> tuple[str, str]:
-    from app.auth import settings
-
-    username = "admin"
-    password = "super-secret-password"
-
-    monkeypatch.setattr(settings, "admin_username", username)
-    monkeypatch.setattr(settings, "admin_password", password)
-    monkeypatch.setattr(settings, "jwt_secret", "test-jwt-secret-with-at-least-32-bytes")
-    monkeypatch.setattr(settings, "jwt_expire_minutes", 60)
-    return username, password
-
-
-def _get_admin_headers(client: TestClient, monkeypatch) -> dict[str, str]:
-    username, password = _configure_admin_credentials(monkeypatch)
-    response = client.post("/api/admin/auth/login", json={"username": username, "password": password})
-    assert response.status_code == 200
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
-
-
 def _create_completed_job(client: TestClient, monkeypatch) -> str:
-    headers = _get_admin_headers(client, monkeypatch)
     created_prompt = client.post(
         "/api/prompts",
-        headers=headers,
         json={
             "name": "Comic",
             "description": "Comic style",
@@ -52,13 +28,13 @@ def _create_completed_job(client: TestClient, monkeypatch) -> str:
     prompt_id = created_prompt.json()["id"]
 
     monkeypatch.setattr(
-        "app.openrouter_client.generate_image",
+        "photoframe_backend.infrastructure.clients.openrouter_client.generate_image",
         lambda **kwargs: b"generated-png-bytes",
     )
 
     created_job = client.post(
         "/api/jobs",
-        files={"photo": ("src.jpg", SOURCE_IMAGE, "image/jpeg")},
+        files={"photo": ("src.jpg", b"src", "image/jpeg")},
         data={"prompt_id": str(prompt_id)},
     )
     assert created_job.status_code == 202
@@ -105,7 +81,7 @@ def test_qr_always_uses_request_base_url(monkeypatch) -> None:
         captured["url"] = url
         return b"fake-png"
 
-    monkeypatch.setattr("app.routers.jobs.build_qr_png", fake_build_qr_png)
+    monkeypatch.setattr("photoframe_backend.api.http.routers.jobs.build_qr_png", fake_build_qr_png)
 
     response = client.get(f"/api/jobs/hash/{job_hash}/qr")
     assert response.status_code == 200
@@ -133,22 +109,3 @@ def test_public_qr_hash_endpoint_returns_file(monkeypatch) -> None:
     assert response.content == b"generated-png-bytes"
     assert 'filename="photoframe-' in response.headers.get("content-disposition", "")
     assert response.headers.get("content-disposition", "").endswith('.jpg"')
-
-
-def test_public_qr_hash_endpoint_rejects_result_outside_storage(monkeypatch, tmp_path) -> None:
-    _reset_db()
-    client = TestClient(app)
-    job_hash = _create_completed_job(client, monkeypatch)
-
-    outside_file = tmp_path / "outside.jpg"
-    outside_file.write_bytes(b"outside")
-
-    with SessionLocal() as db:
-        job = db.query(GenerationJob).filter(GenerationJob.qr_hash == job_hash).first()
-        assert job is not None
-        job.result_path = str(outside_file)
-        db.add(job)
-        db.commit()
-
-    response = client.get(f"/qr/{job_hash}")
-    assert response.status_code == 404

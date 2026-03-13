@@ -12,16 +12,20 @@ cp .env.example .env
 ```
 
 Set at least these variables in `backend/.env`:
-- `OPENROUTER_API_KEY`
-- `JWT_SECRET`
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD`
-- `DEFAULT_PUBLIC_ROOM_SLUG` (8-char slug `[a-z0-9]`, default `ph000000`)
+- `OPENROUTER__API_KEY`
+- `AUTH__JWT_SECRET`
+- `AUTH__ADMIN_USERNAME`
+- `AUTH__ADMIN_PASSWORD`
+- `APP__DEFAULT_PUBLIC_ROOM_SLUG` (8-char slug `[a-z0-9]`, default `ph000000`)
+- `DB__HOST`, `DB__PORT`, `DB__NAME`, `DB__USER`, `DB__PASSWORD`
 
-Run API:
+Bootstrap backend and run API:
 ```bash
 cd backend
-uv run uvicorn app.main:app --reload
+uv run python scripts/check_postgres_ready.py
+uv run python scripts/run_migrations.py
+uv run python scripts/bootstrap_default_room.py
+uv run uvicorn photoframe_backend.main:app --reload
 ```
 
 Backend URL: `http://127.0.0.1:8000`
@@ -44,4 +48,5 @@ Frontend URL: `http://127.0.0.1:5173`
 
 ## Notes
 - Legacy wrappers (`/api/prompts`, `/api/jobs/*`) still map to default room.
+- Runtime and deploy are PostgreSQL-first. Use `uv run python scripts/migrate_sqlite_to_postgres.py --source ./photoframe.db` only for one-off legacy data import.
 - For full details, see `docs/run-local.md`.

@@ -1,15 +1,20 @@
 import os
-import shutil
 import tempfile
 from pathlib import Path
 
+
 _TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="ai-photoframe-pytest-"))
 _TEST_DB_PATH = _TEST_DB_DIR / "photoframe-test.db"
-
-# Force pytest runs onto a disposable sqlite database so test helpers that
-# recreate schema never touch the developer's working database file.
-os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH.as_posix()}"
+_TEST_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
 
 
-def pytest_sessionfinish(session, exitstatus) -> None:  # type: ignore[no-untyped-def]
-    shutil.rmtree(_TEST_DB_DIR, ignore_errors=True)
+def _force_pytest_database_env(*, include_test_database_url: bool = False) -> None:
+    os.environ["APP__ENV"] = "test"
+    os.environ["DATABASE_URL"] = _TEST_DATABASE_URL
+    if include_test_database_url:
+        os.environ["TEST_DATABASE_URL"] = _TEST_DATABASE_URL
+    else:
+        os.environ.pop("TEST_DATABASE_URL", None)
+
+
+_force_pytest_database_env()

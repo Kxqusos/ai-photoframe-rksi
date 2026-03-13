@@ -5,11 +5,14 @@ from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
 
+from photoframe_backend.shared.public_ids import generate_public_id, is_public_id
+
 revision = "20260224_01_rooms_pg17"
 down_revision = None
 branch_labels = None
 depends_on = None
 
+DEFAULT_ROOM_ID = 1
 DEFAULT_ROOM_SLUG = "ph000000"
 DEFAULT_ROOM_NAME = "Main"
 DEFAULT_ROOM_MODEL = "openai/gpt-5-image"
@@ -20,6 +23,81 @@ def _default_room_id(bind) -> int:
     if room_id is None:
         raise RuntimeError("default room was not created")
     return int(room_id)
+
+
+def _ensure_default_room(bind) -> None:
+    dialect = bind.dialect.name
+    if dialect == "sqlite":
+        bind.execute(
+            sa.text(
+                """
+                INSERT OR IGNORE INTO rooms (id, slug, name, model_name, is_active)
+                VALUES (:id, :slug, :name, :model_name, :is_active)
+                """
+            ),
+            {
+                "id": DEFAULT_ROOM_ID,
+                "slug": DEFAULT_ROOM_SLUG,
+                "name": DEFAULT_ROOM_NAME,
+                "model_name": DEFAULT_ROOM_MODEL,
+                "is_active": 1,
+            },
+        )
+        return
+
+    bind.execute(
+        sa.text(
+            """
+            INSERT INTO rooms (id, slug, name, model_name, is_active)
+            VALUES (:id, :slug, :name, :model_name, :is_active)
+            ON CONFLICT (slug) DO NOTHING
+            """
+        ),
+        {
+            "id": DEFAULT_ROOM_ID,
+            "slug": DEFAULT_ROOM_SLUG,
+            "name": DEFAULT_ROOM_NAME,
+            "model_name": DEFAULT_ROOM_MODEL,
+            "is_active": True,
+        },
+    )
+
+
+def _generate_unique_room_slug(used_slugs: set[str]) -> str:
+    while True:
+        candidate = generate_public_id()
+        if candidate not in used_slugs:
+            return candidate
+
+
+def _migrate_room_slugs(bind) -> None:
+    rows = bind.execute(sa.text("SELECT id, slug FROM rooms ORDER BY id ASC")).fetchall()
+    if not rows:
+        return
+
+    used_slugs: set[str] = set()
+    for row in rows:
+        slug = str(row[1] or "").strip().lower()
+        if is_public_id(slug):
+            used_slugs.add(slug)
+
+    for row in rows:
+        room_id = int(row[0])
+        current_slug = str(row[1] or "")
+        normalized = current_slug.strip().lower()
+
+        if is_public_id(normalized):
+            if normalized != current_slug:
+                bind.execute(sa.text("UPDATE rooms SET slug = :slug WHERE id = :id"), {"slug": normalized, "id": room_id})
+            continue
+
+        if DEFAULT_ROOM_SLUG not in used_slugs and (room_id == DEFAULT_ROOM_ID or normalized == "main"):
+            new_slug = DEFAULT_ROOM_SLUG
+        else:
+            new_slug = _generate_unique_room_slug(used_slugs)
+
+        bind.execute(sa.text("UPDATE rooms SET slug = :slug WHERE id = :id"), {"slug": new_slug, "id": room_id})
+        used_slugs.add(new_slug)
 
 
 def _ensure_room_fk(table_name: str, fk_name: str, index_name: str) -> None:
@@ -49,6 +127,20 @@ def _ensure_room_fk(table_name: str, fk_name: str, index_name: str) -> None:
     bind.execute(sa.text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} (room_id)"))
 
 
+def _ensure_generation_jobs_qr_hash() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    tables = set(inspector.get_table_names())
+    if "generation_jobs" not in tables:
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("generation_jobs")}
+    if "qr_hash" not in columns:
+        op.add_column("generation_jobs", sa.Column("qr_hash", sa.String(length=64), nullable=True))
+
+    bind.execute(sa.text("CREATE UNIQUE INDEX IF NOT EXISTS ix_generation_jobs_qr_hash ON generation_jobs (qr_hash)"))
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -65,21 +157,8 @@ def upgrade() -> None:
         )
 
     bind.execute(sa.text("CREATE UNIQUE INDEX IF NOT EXISTS ix_rooms_slug ON rooms (slug)"))
-    bind.execute(
-        sa.text(
-            """
-            INSERT INTO rooms (slug, name, model_name, is_active)
-            VALUES (:slug, :name, :model_name, :is_active)
-            ON CONFLICT (slug) DO NOTHING
-            """
-        ),
-        {
-            "slug": DEFAULT_ROOM_SLUG,
-            "name": DEFAULT_ROOM_NAME,
-            "model_name": DEFAULT_ROOM_MODEL,
-            "is_active": True,
-        },
-    )
+    _ensure_default_room(bind)
+    _migrate_room_slugs(bind)
 
     inspector = sa.inspect(bind)
     tables = set(inspector.get_table_names())
@@ -116,6 +195,8 @@ def upgrade() -> None:
         bind.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_generation_jobs_room_id ON generation_jobs (room_id)"))
     else:
         _ensure_room_fk("generation_jobs", "fk_generation_jobs_room_id_rooms", "ix_generation_jobs_room_id")
+
+    _ensure_generation_jobs_qr_hash()
 
 
 def downgrade() -> None:

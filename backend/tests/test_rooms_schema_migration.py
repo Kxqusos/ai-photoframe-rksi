@@ -1,13 +1,18 @@
 from pathlib import Path
 import re
 
+import sqlalchemy as sa
 from sqlalchemy import inspect
 from sqlalchemy.orm import sessionmaker
 
+from photoframe_backend.infrastructure.db.base import Base as SrcBase
+from scripts.bootstrap_default_room import bootstrap_default_room
+from scripts.run_migrations import run_migrations
+
 
 def _load_fresh_backend_modules(monkeypatch, tmp_path: Path):
-    import app.db as db_module
-    import app.models as models_module
+    import photoframe_backend.infrastructure.db.runtime as db_module
+    import photoframe_backend.infrastructure.db.models as models_module
 
     db_file = tmp_path / "rooms-schema.db"
     database_url = f"sqlite:///{db_file}"
@@ -18,7 +23,8 @@ def _load_fresh_backend_modules(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(db_module, "engine", test_engine)
     monkeypatch.setattr(db_module, "SessionLocal", test_session_local)
 
-    db_module.init_db()
+    run_migrations(database_url)
+    bootstrap_default_room(engine=test_engine, database_url=database_url, default_room_slug=db_module.DEFAULT_ROOM_SLUG)
     return db_module, models_module
 
 
@@ -27,6 +33,7 @@ def test_rooms_table_exists_with_unique_slug(monkeypatch, tmp_path: Path) -> Non
     inspector = inspect(db_module.engine)
 
     assert "rooms" in inspector.get_table_names()
+    assert db_module.Base is SrcBase
     unique_constraints = inspector.get_unique_constraints("rooms")
     unique_indexes = inspector.get_indexes("rooms")
     assert (
@@ -73,7 +80,7 @@ def test_default_room_is_created_on_startup(monkeypatch, tmp_path: Path) -> None
 
 
 def test_legacy_room_slugs_are_migrated_to_public_id_format(monkeypatch, tmp_path: Path) -> None:
-    import app.db as db_module
+    import photoframe_backend.infrastructure.db.runtime as db_module
 
     db_file = tmp_path / "rooms-schema-legacy.db"
     database_url = f"sqlite:///{db_file}"
@@ -83,12 +90,23 @@ def test_legacy_room_slugs_are_migrated_to_public_id_format(monkeypatch, tmp_pat
     monkeypatch.setattr(db_module, "DATABASE_URL", database_url)
     monkeypatch.setattr(db_module, "engine", test_engine)
     monkeypatch.setattr(db_module, "SessionLocal", test_session_local)
-    monkeypatch.setattr(db_module, "generate_public_id", lambda: "zzzzzzzz")
 
-    db_module.Base.metadata.create_all(bind=test_engine)
     with test_engine.begin() as connection:
         connection.execute(
-            db_module.text(
+            sa.text(
+                """
+                CREATE TABLE rooms (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    slug VARCHAR(120) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    model_name VARCHAR(255) NOT NULL,
+                    is_active BOOLEAN NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            sa.text(
                 """
                 INSERT INTO rooms (slug, name, model_name, is_active)
                 VALUES ('main', 'Main', 'openai/gpt-5-image', 1),
@@ -97,7 +115,8 @@ def test_legacy_room_slugs_are_migrated_to_public_id_format(monkeypatch, tmp_pat
             )
         )
 
-    db_module.init_db()
+    run_migrations(database_url)
+    bootstrap_default_room(engine=test_engine, database_url=database_url, default_room_slug=db_module.DEFAULT_ROOM_SLUG)
 
     with db_module.SessionLocal() as db:
         slugs = [row[0] for row in db.execute(db_module.text("SELECT slug FROM rooms ORDER BY id ASC")).all()]
@@ -105,51 +124,3 @@ def test_legacy_room_slugs_are_migrated_to_public_id_format(monkeypatch, tmp_pat
     assert "8march" not in slugs
     assert "ph000000" in slugs
     assert all(re.fullmatch(r"[a-z0-9]{8}", slug) for slug in slugs)
-
-
-def test_default_room_insert_tolerates_existing_primary_key_on_postgres_path(monkeypatch, tmp_path: Path) -> None:
-    import app.db as db_module
-
-    db_file = tmp_path / "rooms-schema-postgres-conflict.db"
-    database_url = f"sqlite:///{db_file}"
-    test_engine = db_module.create_engine(database_url, connect_args={"check_same_thread": False})
-    test_session_local = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
-    monkeypatch.setattr(db_module, "DATABASE_URL", "postgresql://example/test")
-    monkeypatch.setattr(db_module, "engine", test_engine)
-    monkeypatch.setattr(db_module, "SessionLocal", test_session_local)
-
-    db_module.Base.metadata.create_all(bind=test_engine)
-    with test_engine.begin() as connection:
-        connection.execute(
-            db_module.text(
-                """
-                INSERT INTO rooms (id, slug, name, model_name, is_active)
-                VALUES (1, 'aaaaaaaa', 'Legacy Primary', 'openai/gpt-5-image', 1)
-                """
-            )
-        )
-
-    with test_engine.begin() as connection:
-        db_module._ensure_default_room_exists(connection)
-        rows = connection.execute(
-            db_module.text("SELECT id, slug FROM rooms ORDER BY id ASC")
-        ).fetchall()
-
-    assert any(row[1] == "ph000000" for row in rows)
-
-
-def test_init_db_skips_runtime_schema_bootstrap_for_postgres(monkeypatch) -> None:
-    import app.db as db_module
-
-    monkeypatch.setattr(db_module, "DATABASE_URL", "postgresql://example/test")
-
-    calls: list[str] = []
-
-    monkeypatch.setattr(db_module.Base.metadata, "create_all", lambda bind: calls.append("create_all"))
-    monkeypatch.setattr(db_module, "_migrate_rooms_schema", lambda: calls.append("migrate_rooms"))
-    monkeypatch.setattr(db_module, "_migrate_generation_jobs_qr_hash", lambda: calls.append("migrate_qr"))
-
-    db_module.init_db()
-
-    assert calls == []

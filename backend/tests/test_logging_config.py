@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from app.config import configure_logging
+from photoframe_backend.shared.logging import configure_logging
 
 
 def _find_file_handlers_for_path(path: Path) -> list[RotatingFileHandler]:
@@ -17,8 +17,8 @@ def _find_file_handlers_for_path(path: Path) -> list[RotatingFileHandler]:
 
 def test_configure_logging_writes_logs_to_file(monkeypatch, tmp_path: Path) -> None:
     log_path = tmp_path / "backend.log"
-    monkeypatch.setenv("LOG_FILE_PATH", str(log_path))
-    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("LOG__FILE_PATH", str(log_path))
+    monkeypatch.setenv("LOG__LEVEL", "INFO")
 
     root_logger = logging.getLogger()
     original_handlers = list(root_logger.handlers)
