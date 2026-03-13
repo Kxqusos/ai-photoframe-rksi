@@ -21,6 +21,8 @@
 
 ## Legacy compatibility wrappers (default room)
 - `GET /api/prompts`
+- `POST /api/prompts` with `Authorization: Bearer <token>`
+- `DELETE /api/prompts/{prompt_id}` with `Authorization: Bearer <token>`
 - `POST /api/jobs`
 - `GET /api/jobs/{job_id}`
 - `GET /api/jobs/{job_id}/qr`
@@ -38,6 +40,7 @@ These wrappers resolve to the default public room and are kept for backward comp
 - `GET /api/admin/auth/me` with header `Authorization: Bearer <token>` -> `{ "username": "..." }`
 
 Missing/invalid token returns `401` with `WWW-Authenticate: Bearer`.
+Insecure admin auth configuration returns `503` on login/protected auth flows.
 
 ## Admin Room Management (JWT required)
 All endpoints below require `Authorization: Bearer <token>`.
@@ -53,9 +56,9 @@ All endpoints below require `Authorization: Bearer <token>`.
 - `GET /api/admin/rooms/{room_id}/prompts`
 - `POST /api/admin/rooms/{room_id}/prompts`
 - `DELETE /api/admin/rooms/{room_id}/prompts/{prompt_id}`
-- `POST /api/admin/rooms/{room_id}/media/prompt-preview` (multipart `file`)
-- `POST /api/admin/rooms/{room_id}/media/prompt-icon` (multipart `file`)
+- `POST /api/admin/rooms/{room_id}/media/prompt-preview` (multipart `file`, image only, size-limited)
+- `POST /api/admin/rooms/{room_id}/media/prompt-icon` (multipart `file`, image only, size-limited)
 
 ## Legacy model setting endpoint
 - `GET /api/settings/model`
-- `PUT /api/settings/model`
+- `PUT /api/settings/model` with `Authorization: Bearer <token>`

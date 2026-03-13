@@ -17,6 +17,22 @@ function resolvePathname(): string {
   return window.location.pathname;
 }
 
+function renderShell(content: React.ReactNode, options?: { roomSlug?: string; showMenu?: boolean }) {
+  const roomSlug = options?.roomSlug;
+  const showMenu = options?.showMenu ?? false;
+
+  return (
+    <div className={`app-shell app-shell--studio${roomSlug ? " app-shell--public" : ""}`}>
+      {showMenu ? (
+        <div className="app-shell__header app-shell__header--public">
+          <PublicRoomMenu currentRoomSlug={roomSlug ?? DEFAULT_ROOM_SLUG} />
+        </div>
+      ) : null}
+      <div className="app-shell__content app-shell__content--public">{content}</div>
+    </div>
+  );
+}
+
 export default function App() {
   const [pathname, setPathname] = useState(resolvePathname);
 
@@ -27,48 +43,34 @@ export default function App() {
   }, []);
 
   if (pathname === "/admin/login") {
-    return <AdminLoginPage />;
+    return renderShell(<AdminLoginPage />);
   }
 
   if (pathname === "/admin") {
-    return <AdminDashboardPage />;
+    return renderShell(<AdminDashboardPage />);
   }
 
   const adminRoomMatch = pathname.match(/^\/admin\/rooms\/([a-z0-9]{8})$/i);
   if (adminRoomMatch) {
-    return <AdminRoomEditorPage roomSlug={adminRoomMatch[1].toLowerCase()} />;
+    return renderShell(<AdminRoomEditorPage roomSlug={adminRoomMatch[1].toLowerCase()} />);
   }
 
   const route = resolvePublicRoute(pathname);
   if (route?.page === "result") {
-    return (
-      <>
-        <PublicRoomMenu currentRoomSlug={route.roomSlug} />
-        <ResultPage roomSlug={route.roomSlug} jpgHash={route.jpgHash} />
-      </>
-    );
+    return renderShell(<ResultPage roomSlug={route.roomSlug} jpgHash={route.jpgHash} />, {
+      roomSlug: route.roomSlug,
+      showMenu: true
+    });
   }
   if (route?.page === "gallery") {
-    return (
-      <>
-        <PublicRoomMenu currentRoomSlug={route.roomSlug} />
-        <GalleryPage roomSlug={route.roomSlug} />
-      </>
-    );
+    return renderShell(<GalleryPage roomSlug={route.roomSlug} />, {
+      roomSlug: route.roomSlug,
+      showMenu: true
+    });
   }
   if (route?.page === "capture") {
-    return (
-      <>
-        <PublicRoomMenu currentRoomSlug={route.roomSlug} />
-        <CapturePage roomSlug={route.roomSlug} />
-      </>
-    );
+    return renderShell(<CapturePage roomSlug={route.roomSlug} />, { roomSlug: route.roomSlug });
   }
 
-  return (
-    <>
-      <PublicRoomMenu currentRoomSlug={DEFAULT_ROOM_SLUG} />
-      <CapturePage roomSlug={DEFAULT_ROOM_SLUG} />
-    </>
-  );
+  return renderShell(<CapturePage roomSlug={DEFAULT_ROOM_SLUG} />, { roomSlug: DEFAULT_ROOM_SLUG });
 }

@@ -15,9 +15,11 @@
    - Generated files are stored for `RESULT_RETENTION_DAYS` and then pruned.
    - Backend writes logs to `backend/logs/backend.log` by default (`LOG_FILE_PATH`).
    - JWT/admin setup:
-     - `JWT_SECRET` must be non-default in non-local environments.
+     - `JWT_SECRET` must be set to a strong secret; placeholder/default values are rejected by admin auth.
      - `ADMIN_USERNAME` and `ADMIN_PASSWORD` configure single admin account.
      - `DEFAULT_PUBLIC_ROOM_SLUG` controls which room legacy wrappers (`/api/jobs`, `/api/prompts`) point to.
+     - Mutating legacy endpoints (`POST/DELETE /api/prompts`, `PUT /api/settings/model`) now require admin JWT.
+     - Upload endpoints accept image files only and enforce server-side size limits.
 3. `uv run uvicorn app.main:app --reload`
 
 Backend starts at `http://127.0.0.1:8000`.

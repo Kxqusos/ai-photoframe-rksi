@@ -9,6 +9,7 @@ export function StylesPage() {
   const [styles, setStyles] = useState<StylePrompt[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -21,6 +22,7 @@ export function StylesPage() {
         setStyles(items);
         if (items.length === 0) {
           setSelectedId(null);
+          setIsLoading(false);
           return;
         }
 
@@ -31,12 +33,14 @@ export function StylesPage() {
           (storedSelected !== null && items.some((item) => item.id === storedSelected) ? storedSelected : null) ??
           items[0].id;
         setSelectedId(preferred);
+        setIsLoading(false);
       })
-      .catch((cause) => {
+      .catch(() => {
         if (!active) {
           return;
         }
-        setError(cause instanceof Error ? cause.message : "Не удалось загрузить стили");
+        setError("Не удалось загрузить стили");
+        setIsLoading(false);
       });
 
     return () => {
@@ -73,17 +77,29 @@ export function StylesPage() {
 
       {error ? <p role="alert">{error}</p> : null}
 
-      <section className="style-grid style-grid--catalog">
-        {styles.map((item) => (
-          <StyleCard key={item.id} style={item} selected={item.id === selectedId} onSelect={setSelectedId} />
-        ))}
-      </section>
+      {isLoading ? <section className="status-inline">Загружаем стили</section> : null}
 
-      <section className="styles-footer panel">
-        <p className="styles-footer__selected">
-          {selectedStyle ? `Выбран стиль: ${selectedStyle.name}` : "Стиль пока не выбран"}
-        </p>
-        <div className="action-row">
+      {!isLoading && styles.length === 0 && !error ? <section className="empty-state">Пока нет стилей для выбора</section> : null}
+
+      {styles.length > 0 ? (
+        <section className="style-grid style-grid--catalog">
+          {styles.map((item) => (
+            <StyleCard key={item.id} style={item} selected={item.id === selectedId} onSelect={setSelectedId} />
+          ))}
+        </section>
+      ) : null}
+
+      <section className="styles-footer panel layout-split">
+        <div className="styles-footer__summary">
+          <p className="styles-footer__eyebrow">Готово к съемке</p>
+          <h2>{selectedStyle ? selectedStyle.name : "Стиль пока не выбран"}</h2>
+          <p className="styles-footer__selected">
+            {selectedStyle
+              ? selectedStyle.description
+              : "Когда стили появятся, вы сможете выбрать визуальный стиль и вернуться на экран камеры."}
+          </p>
+        </div>
+        <div className="sticky-actions styles-footer__actions">
           <button type="button" className="button-secondary" onClick={onBack}>
             Назад
           </button>

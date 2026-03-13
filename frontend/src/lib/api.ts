@@ -8,6 +8,7 @@ import type {
   PublicRoom,
   PromptCreate,
   RoomCreatePayload,
+  RoomPatchPayload,
   Room,
   StylePrompt
 } from "../types";
@@ -258,6 +259,28 @@ export async function updateRoom(roomId: number, payload: Omit<Room, "id">): Pro
   return (await response.json()) as Room;
 }
 
+export async function patchRoom(roomId: number, payload: RoomPatchPayload): Promise<Room> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}`, {
+    method: "PATCH",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("Failed to update room");
+  }
+  return (await response.json()) as Room;
+}
+
+export async function deleteRoom(roomId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}`, {
+    method: "DELETE",
+    headers: requireAdminHeaders()
+  });
+  if (!response.ok) {
+    throw new Error("Failed to delete room");
+  }
+}
+
 export async function updateRoomModel(roomId: number, modelName: string): Promise<Room> {
   const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}/model`, {
     method: "PUT",
@@ -288,6 +311,18 @@ export async function createRoomAdminPrompt(roomId: number, payload: PromptCreat
   });
   if (!response.ok) {
     throw new Error("Failed to create room prompt");
+  }
+  return (await response.json()) as StylePrompt;
+}
+
+export async function updateRoomAdminPrompt(roomId: number, promptId: number, payload: PromptCreate): Promise<StylePrompt> {
+  const response = await fetch(`${API_BASE}/api/admin/rooms/${roomId}/prompts/${promptId}`, {
+    method: "PUT",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("Failed to update room prompt");
   }
   return (await response.json()) as StylePrompt;
 }

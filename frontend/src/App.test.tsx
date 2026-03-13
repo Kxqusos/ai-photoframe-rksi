@@ -49,9 +49,10 @@ test("renders result page for room result pathname", () => {
 test("renders admin login page for /admin/login", () => {
   window.history.pushState({}, "", "/admin/login");
 
-  render(<App />);
+  const { container } = render(<App />);
 
   expect(screen.getByText("admin-login-page")).toBeInTheDocument();
+  expect(container.firstElementChild).toHaveClass("app-shell", "app-shell--studio");
 });
 
 test("renders admin room editor page for slug route", () => {
@@ -63,12 +64,33 @@ test("renders admin room editor page for slug route", () => {
 });
 
 test("renders public room menu on public routes", () => {
-  window.history.pushState({}, "", "/aaaaaaaa");
+  window.history.pushState({}, "", "/aaaaaaaa/gallery");
 
   render(<App />);
 
   expect(screen.getByText("public-room-menu")).toBeInTheDocument();
-  expect(screen.getByText("capture-page")).toBeInTheDocument();
+  expect(screen.getByText("gallery-page")).toBeInTheDocument();
+});
+
+test("wraps non-capture public routes in the shared public shell header", () => {
+  window.history.pushState({}, "", "/aaaaaaaa/gallery");
+
+  const { container } = render(<App />);
+
+  expect(container.firstElementChild).toHaveClass("app-shell", "app-shell--public");
+  expect(container.querySelector(".app-shell__header--public")).not.toBeNull();
+  expect(container.querySelector(".app-shell__header--public")?.textContent).toContain("public-room-menu");
+  expect(container.querySelector(".app-shell__content--public")).not.toBeNull();
+});
+
+test("keeps capture route inside public shell without detached header menu", () => {
+  window.history.pushState({}, "", "/aaaaaaaa");
+
+  const { container } = render(<App />);
+
+  expect(container.firstElementChild).toHaveClass("app-shell", "app-shell--public");
+  expect(container.querySelector(".app-shell__content--public")).not.toBeNull();
+  expect(container.querySelector(".app-shell__header--public")).toBeNull();
 });
 
 test("does not expose /settings route and falls back to public capture page", () => {

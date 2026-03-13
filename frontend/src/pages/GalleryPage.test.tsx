@@ -48,6 +48,23 @@ test("renders masonry gallery and appends new images from polling", async () => 
   expect(listGalleryResultsMock).toHaveBeenCalledTimes(2);
 });
 
+test("renders curated gallery framing for populated state", async () => {
+  listGalleryResultsMock.mockResolvedValueOnce([
+    { name: "photo.jpg", url: "/media/results/photo.jpg", modified_at: 10 }
+  ]);
+
+  render(<GalleryPage roomSlug="aaaaaaaa" />);
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(screen.getByRole("heading", { name: /лента лучших кадров/i })).toBeInTheDocument();
+  expect(screen.getByText(/новые снимки появляются автоматически/i)).toBeInTheDocument();
+  expect(screen.getByText(/подборка комнаты/i)).toBeInTheDocument();
+  expect(screen.getByLabelText("gallery auto scroll")).toBeInTheDocument();
+});
+
 test("renders one continuous masonry stream without intentional duplicates", async () => {
   listGalleryResultsMock.mockResolvedValueOnce([
     { name: "loop-a.jpg", url: "/media/results/loop-a.jpg", modified_at: 20 },
@@ -122,10 +139,8 @@ test("keeps auto scroll moving when browser stores scrollTop as integer", async 
   expect(scrollTopValue).toBeGreaterThan(0);
 });
 
-test("renders gallery without title header and keeps auto-scroll container", async () => {
-  listGalleryResultsMock.mockResolvedValueOnce([
-    { name: "photo.jpg", url: "/media/results/photo.jpg", modified_at: 10 }
-  ]);
+test("renders curated empty state when gallery has no images yet", async () => {
+  listGalleryResultsMock.mockResolvedValueOnce([]);
 
   render(<GalleryPage roomSlug="aaaaaaaa" />);
 
@@ -133,8 +148,24 @@ test("renders gallery without title header and keeps auto-scroll container", asy
     await Promise.resolve();
   });
 
-  expect(screen.queryByRole("heading", { name: "Галерея" })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /лента лучших кадров/i })).toBeInTheDocument();
+  expect(screen.getByText(/первые фотографии появятся здесь автоматически/i)).toBeInTheDocument();
+  expect(screen.getByText(/пока в подборке нет готовых кадров/i)).toBeInTheDocument();
   expect(screen.getByLabelText("gallery auto scroll")).toBeInTheDocument();
+});
+
+test("renders gallery error state with explanatory copy", async () => {
+  listGalleryResultsMock.mockRejectedValueOnce(new Error("Сервис галереи недоступен"));
+
+  render(<GalleryPage roomSlug="aaaaaaaa" />);
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(screen.getByRole("alert")).toHaveTextContent("Сервис галереи недоступен");
+  expect(screen.getByRole("heading", { name: /не удалось обновить подборку/i })).toBeInTheDocument();
+  expect(screen.getByText(/попробуйте открыть галерею чуть позже/i)).toBeInTheDocument();
 });
 
 test("applies mixed size variants to gallery cards", async () => {

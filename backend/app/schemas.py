@@ -5,12 +5,18 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 from app.hash_utils import PUBLIC_ID_PATTERN
 
 PublicId = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=PUBLIC_ID_PATTERN)]
+RoomName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+ModelName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+PromptName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+PromptDescription = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+PromptText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+MediaUrl = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
 class RoomCreate(BaseModel):
     slug: PublicId | None = None
-    name: str
-    model_name: str
+    name: RoomName
+    model_name: ModelName
     is_active: bool = True
 
 
@@ -30,21 +36,28 @@ class PublicRoomOut(BaseModel):
 
 class RoomUpdate(BaseModel):
     slug: PublicId | None = None
-    name: str
-    model_name: str
+    name: RoomName
+    model_name: ModelName
     is_active: bool
 
 
 class RoomModelUpdate(BaseModel):
-    model_name: str
+    model_name: ModelName
+
+
+class RoomPatch(BaseModel):
+    slug: PublicId | None = None
+    name: RoomName | None = None
+    model_name: ModelName | None = None
+    is_active: bool | None = None
 
 
 class PromptCreate(BaseModel):
-    name: str
-    description: str
-    prompt: str
-    preview_image_url: str
-    icon_image_url: str
+    name: PromptName
+    description: PromptDescription
+    prompt: PromptText
+    preview_image_url: MediaUrl
+    icon_image_url: MediaUrl
 
 
 class PromptOut(PromptCreate):
@@ -54,7 +67,7 @@ class PromptOut(PromptCreate):
 
 
 class ModelSettingIn(BaseModel):
-    model_name: str
+    model_name: ModelName
 
 
 class ModelSettingOut(BaseModel):

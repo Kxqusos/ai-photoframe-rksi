@@ -145,15 +145,18 @@ def list_gallery_results(room_slug: str) -> list[dict[str, Any]]:
 def create_processing_job(db: Session, *, prompt_id: int, room_id: int, source_bytes: bytes) -> GenerationJob:
     job = GenerationJob(prompt_id=prompt_id, room_id=room_id, status="processing", qr_hash=_generate_unique_qr_hash(db))
     db.add(job)
-    db.commit()
-    db.refresh(job)
+    db.flush()
 
     source_path = SOURCE_DIR / _build_filename(job.id, ".jpg")
-    source_path.write_bytes(source_bytes)
-    job.source_path = str(source_path)
-    db.add(job)
-    db.commit()
-    db.refresh(job)
+    try:
+        source_path.write_bytes(source_bytes)
+        job.source_path = str(source_path)
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+    except Exception:
+        db.rollback()
+        raise
     return job
 
 
@@ -180,17 +183,11 @@ def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
     if job is None:
         raise ValueError(f"job {job_id} not found")
 
-    prompt = db.get(Prompt, job.prompt_id)
-    if prompt is None:
-        job.status = "error"
-        job.error_message = "prompt not found"
-        db.add(job)
-        db.commit()
-        db.refresh(job)
-        return job
-
     source_path = job.source_path
     try:
+        prompt = db.get(Prompt, job.prompt_id)
+        if prompt is None:
+            raise ValueError("prompt not found")
         room = db.get(Room, job.room_id)
         if room is None:
             raise ValueError("room not found")
@@ -267,6 +264,13 @@ def get_or_create_default_room(db: Session) -> Room:
 
     room = Room(slug=default_slug, name="Main", model_name=DEFAULT_MODEL_NAME, is_active=True)
     db.add(room)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        existing = db.query(Room).filter(Room.slug == default_slug).first()
+        if existing is not None:
+            return existing
+        raise
     db.refresh(room)
     return room

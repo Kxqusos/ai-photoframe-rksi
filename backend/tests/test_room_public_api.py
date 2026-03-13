@@ -6,6 +6,9 @@ from fastapi.testclient import TestClient
 from app.db import Base, SessionLocal, engine
 from app.main import app
 from app.models import GenerationJob, Prompt, Room
+from tests.image_utils import tiny_jpeg_bytes
+
+SOURCE_IMAGE = tiny_jpeg_bytes()
 
 
 def _reset_db() -> None:
@@ -66,6 +69,31 @@ def test_room_prompts_endpoint_returns_only_room_prompts() -> None:
     assert body[0]["name"] == "Style A"
 
 
+def test_room_prompts_endpoint_returns_404_for_inactive_room() -> None:
+    _reset_db()
+    ids = _seed_rooms_and_prompts()
+    client = TestClient(app)
+
+    with SessionLocal() as db:
+        room = db.get(Room, ids["room_a_id"])
+        assert room is not None
+        room.is_active = False
+        db.add(room)
+        db.commit()
+
+    response = client.get("/api/rooms/aaaaaaaa/prompts")
+    assert response.status_code == 404
+
+
+def test_room_prompts_endpoint_rejects_invalid_slug() -> None:
+    _reset_db()
+    _seed_rooms_and_prompts()
+    client = TestClient(app)
+
+    response = client.get("/api/rooms/not-valid/prompts")
+    assert response.status_code == 422
+
+
 def test_room_job_creation_rejects_prompt_from_another_room() -> None:
     _reset_db()
     ids = _seed_rooms_and_prompts()
@@ -73,7 +101,7 @@ def test_room_job_creation_rejects_prompt_from_another_room() -> None:
 
     response = client.post(
         "/api/rooms/aaaaaaaa/jobs",
-        files={"photo": ("photo.jpg", b"photo-bytes", "image/jpeg")},
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(ids["prompt_b_id"])},
     )
 
@@ -189,14 +217,14 @@ def test_room_job_generation_uses_room_model(monkeypatch) -> None:
 
     created_a = client.post(
         "/api/rooms/aaaaaaaa/jobs",
-        files={"photo": ("photo-a.jpg", b"photo-a", "image/jpeg")},
+        files={"photo": ("photo-a.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(ids["prompt_a_id"])},
     )
     assert created_a.status_code == 202
 
     created_b = client.post(
         "/api/rooms/bbbbbbbb/jobs",
-        files={"photo": ("photo-b.jpg", b"photo-b", "image/jpeg")},
+        files={"photo": ("photo-b.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(ids["prompt_b_id"])},
     )
     assert created_b.status_code == 202

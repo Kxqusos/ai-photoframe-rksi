@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
 from app.hash_utils import PUBLIC_ID_PATTERN
 from app.job_service import (
+    RESULT_DIR,
     create_processing_job,
     get_completed_job_by_qr_hash,
     get_completed_job_or_404,
@@ -21,6 +22,7 @@ from app.job_service import (
 )
 from app.models import Prompt
 from app.qr_service import build_qr_png
+from app.routers.media import read_validated_image_upload
 from app.schemas import GalleryImageOut, JobCreated, JobStatusOut
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
@@ -28,10 +30,19 @@ room_router = APIRouter(prefix="/api/rooms/{room_slug}/jobs", tags=["jobs"])
 public_router = APIRouter(prefix="/qr", tags=["qr"])
 logger = logging.getLogger(__name__)
 PublicIdPath = Annotated[str, FastapiPath(pattern=PUBLIC_ID_PATTERN)]
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 def _build_qr_target_url(request: Request, qr_hash: str) -> str:
     return str(request.base_url).rstrip("/") + f"/qr/{qr_hash}"
+
+
+def _resolve_public_result_path(result_path: str) -> Path:
+    candidate = Path(result_path).resolve()
+    storage_root = Path(RESULT_DIR).resolve()
+    if not candidate.is_relative_to(storage_root):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="result not found")
+    return candidate
 
 
 def _run_generation_in_background(job_id: int) -> None:
@@ -84,7 +95,7 @@ async def _create_job_for_room(
     if prompt.room_id != room.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="prompt does not belong to room")
 
-    payload = await photo.read()
+    payload = await read_validated_image_upload(photo, max_bytes=MAX_UPLOAD_BYTES)
     job = create_processing_job(db, prompt_id=prompt_id, room_id=room.id, source_bytes=payload)
     background_tasks.add_task(_run_generation_in_background, job.id)
     if not job.qr_hash:
@@ -242,7 +253,7 @@ def download_result_by_qr_hash(qr_hash: str, db: Session = Depends(get_db)) -> F
     job = get_completed_job_by_qr_hash(db, qr_hash)
     if job is None or not job.result_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="qr hash not found")
-    result_path = Path(job.result_path)
+    result_path = _resolve_public_result_path(job.result_path)
     if not result_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="result not found")
     suffix = result_path.suffix or ".jpg"

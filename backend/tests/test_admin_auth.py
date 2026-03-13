@@ -1,3 +1,4 @@
+import jwt
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -73,7 +74,33 @@ def test_admin_login_rejects_when_admin_password_is_not_configured(monkeypatch) 
     assert response.json()["detail"] == "Invalid credentials"
 
 
+def test_admin_login_rejects_insecure_jwt_secret(monkeypatch) -> None:
+    from app.auth import settings
+
+    monkeypatch.setattr(settings, "admin_username", "admin")
+    monkeypatch.setattr(settings, "admin_password", "super-secret-password")
+    monkeypatch.setattr(settings, "jwt_secret", "change-me-in-production")
+    monkeypatch.setattr(settings, "jwt_expire_minutes", 60)
+
+    client = TestClient(app)
+    response = client.post("/api/admin/auth/login", json={"username": "admin", "password": "super-secret-password"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Admin auth is not configured"
+
+
 def test_admin_auth_module_does_not_expose_password_hash_context() -> None:
     import app.auth as auth_module
 
     assert not hasattr(auth_module, "password_context")
+
+
+def test_admin_protected_endpoint_rejects_token_without_exp(monkeypatch) -> None:
+    username, _ = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+
+    token = jwt.encode({"sub": username}, "test-jwt-secret-with-at-least-32-bytes", algorithm="HS256")
+    response = client.get("/api/admin/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid token"

@@ -40,6 +40,15 @@ class _FakeStatusError(Exception):
         self.body = body
 
 
+def _jpeg_with_exif_orientation(width: int = 4, height: int = 2, orientation: int = 6) -> bytes:
+    output = BytesIO()
+    image = Image.new("RGB", (width, height), color=(120, 160, 200))
+    exif = Image.Exif()
+    exif[274] = orientation
+    image.save(output, format="JPEG", exif=exif)
+    return output.getvalue()
+
+
 def test_generate_image_recovers_when_openai_was_missing_during_module_import(monkeypatch) -> None:
     init_calls: list[dict] = []
     create_calls: list[dict] = []
@@ -83,6 +92,17 @@ def test_generate_image_recovers_when_openai_was_missing_during_module_import(mo
     assert result == b"generated-after-retry"
     assert len(init_calls) == 1
     assert len(create_calls) == 1
+
+
+def test_prepare_source_image_applies_exif_rotation_even_without_resize(monkeypatch) -> None:
+    monkeypatch.setenv("OPENROUTER_SOURCE_MAX_SIDE", "1280")
+    source = _jpeg_with_exif_orientation()
+
+    prepared = openrouter_client._prepare_source_image_for_request(source)
+
+    assert prepared != source
+    with Image.open(BytesIO(prepared)) as image:
+        assert image.size == (2, 4)
 
 
 def test_generate_image_uses_openai_sdk_client_with_openrouter_base_url(monkeypatch) -> None:
@@ -269,7 +289,7 @@ def test_generate_image_raises_if_response_has_no_images(monkeypatch) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr("app.openrouter_client.OpenAI", fake_openai)
 
-    with pytest.raises(RuntimeError, match="OpenRouter response does not contain image data"):
+    with pytest.raises(RuntimeError, match="API response does not contain image data"):
         openrouter_client.generate_image(
             model="openai/gpt-image-1",
             prompt="Draw this in oil painting",

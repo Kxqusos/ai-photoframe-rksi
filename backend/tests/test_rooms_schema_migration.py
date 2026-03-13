@@ -105,3 +105,51 @@ def test_legacy_room_slugs_are_migrated_to_public_id_format(monkeypatch, tmp_pat
     assert "8march" not in slugs
     assert "ph000000" in slugs
     assert all(re.fullmatch(r"[a-z0-9]{8}", slug) for slug in slugs)
+
+
+def test_default_room_insert_tolerates_existing_primary_key_on_postgres_path(monkeypatch, tmp_path: Path) -> None:
+    import app.db as db_module
+
+    db_file = tmp_path / "rooms-schema-postgres-conflict.db"
+    database_url = f"sqlite:///{db_file}"
+    test_engine = db_module.create_engine(database_url, connect_args={"check_same_thread": False})
+    test_session_local = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    monkeypatch.setattr(db_module, "DATABASE_URL", "postgresql://example/test")
+    monkeypatch.setattr(db_module, "engine", test_engine)
+    monkeypatch.setattr(db_module, "SessionLocal", test_session_local)
+
+    db_module.Base.metadata.create_all(bind=test_engine)
+    with test_engine.begin() as connection:
+        connection.execute(
+            db_module.text(
+                """
+                INSERT INTO rooms (id, slug, name, model_name, is_active)
+                VALUES (1, 'aaaaaaaa', 'Legacy Primary', 'openai/gpt-5-image', 1)
+                """
+            )
+        )
+
+    with test_engine.begin() as connection:
+        db_module._ensure_default_room_exists(connection)
+        rows = connection.execute(
+            db_module.text("SELECT id, slug FROM rooms ORDER BY id ASC")
+        ).fetchall()
+
+    assert any(row[1] == "ph000000" for row in rows)
+
+
+def test_init_db_skips_runtime_schema_bootstrap_for_postgres(monkeypatch) -> None:
+    import app.db as db_module
+
+    monkeypatch.setattr(db_module, "DATABASE_URL", "postgresql://example/test")
+
+    calls: list[str] = []
+
+    monkeypatch.setattr(db_module.Base.metadata, "create_all", lambda bind: calls.append("create_all"))
+    monkeypatch.setattr(db_module, "_migrate_rooms_schema", lambda: calls.append("migrate_rooms"))
+    monkeypatch.setattr(db_module, "_migrate_generation_jobs_qr_hash", lambda: calls.append("migrate_qr"))
+
+    db_module.init_db()
+
+    assert calls == []

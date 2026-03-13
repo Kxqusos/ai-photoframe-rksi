@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
   adminLogin,
+  deleteRoom,
   createRoomJob,
   getRoomJobStatus,
   listRoomGalleryResults,
   listRoomPrompts,
-  listRooms
+  listRooms,
+  patchRoom,
+  updateRoomAdminPrompt
 } from "./api";
 import { clearAdminToken, loadAdminToken, saveAdminToken } from "./auth";
 
@@ -97,6 +100,89 @@ describe("admin API client", () => {
       expect.stringContaining("/api/admin/auth/login"),
       expect.objectContaining({
         method: "POST"
+      })
+    );
+  });
+
+  test("updates room prompt via protected admin endpoint", async () => {
+    saveAdminToken("jwt-token");
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 12,
+          name: "Edited",
+          description: "Updated description",
+          prompt: "Updated prompt",
+          preview_image_url: "/media/previews/edited.jpg",
+          icon_image_url: "/media/previews/edited.jpg"
+        }),
+        { status: 200 }
+      )
+    );
+
+    await updateRoomAdminPrompt(7, 12, {
+      name: "Edited",
+      description: "Updated description",
+      prompt: "Updated prompt",
+      preview_image_url: "/media/previews/edited.jpg",
+      icon_image_url: "/media/previews/edited.jpg"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/admin/rooms/7/prompts/12"),
+      expect.objectContaining({
+        method: "PUT",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-token",
+          "Content-Type": "application/json"
+        })
+      })
+    );
+  });
+
+  test("patches room via protected admin endpoint", async () => {
+    saveAdminToken("jwt-token");
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 7,
+          slug: "aaaaaaaa",
+          name: "Room A Updated",
+          model_name: "openai/gpt-5-image",
+          is_active: false
+        }),
+        { status: 200 }
+      )
+    );
+
+    await patchRoom(7, { name: "Room A Updated", is_active: false });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/admin/rooms/7"),
+      expect.objectContaining({
+        method: "PATCH",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-token",
+          "Content-Type": "application/json"
+        }),
+        body: JSON.stringify({ name: "Room A Updated", is_active: false })
+      })
+    );
+  });
+
+  test("deletes room via protected admin endpoint", async () => {
+    saveAdminToken("jwt-token");
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await deleteRoom(7);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/admin/rooms/7"),
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-token"
+        })
       })
     );
   });

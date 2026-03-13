@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -8,13 +9,15 @@ from app.config import configure_logging, settings
 from app.db import init_db
 from app.routers import admin, jobs, media, prompts, rooms, settings as settings_router
 
-app = FastAPI(title=settings.app_name)
 
-
-@app.on_event("startup")
-def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     configure_logging()
     init_db()
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 
 @app.get("/api/health")

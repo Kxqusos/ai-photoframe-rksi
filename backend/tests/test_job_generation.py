@@ -7,9 +7,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import Base, SessionLocal, engine
-from app.job_service import DEFAULT_MODEL_NAME, LEGACY_MODEL_NAME, LEGACY_OPENAI_MODEL_NAME
+from app.job_service import (
+    DEFAULT_MODEL_NAME,
+    LEGACY_MODEL_NAME,
+    LEGACY_OPENAI_MODEL_NAME,
+    create_processing_job,
+    get_or_create_default_room,
+    run_generation_sync,
+)
 from app.main import app
-from app.models import GenerationJob, Room
+from app.models import GenerationJob, Prompt, Room
+from tests.image_utils import tiny_jpeg_bytes
+
+SOURCE_IMAGE = tiny_jpeg_bytes()
 
 
 def _reset_db() -> None:
@@ -17,7 +27,28 @@ def _reset_db() -> None:
     Base.metadata.create_all(bind=engine)
 
 
-def _create_prompt(client: TestClient) -> int:
+def _configure_admin_credentials(monkeypatch: pytest.MonkeyPatch) -> tuple[str, str]:
+    from app.auth import settings
+
+    username = "admin"
+    password = "super-secret-password"
+
+    monkeypatch.setattr(settings, "admin_username", username)
+    monkeypatch.setattr(settings, "admin_password", password)
+    monkeypatch.setattr(settings, "jwt_secret", "test-jwt-secret-with-at-least-32-bytes")
+    monkeypatch.setattr(settings, "jwt_expire_minutes", 60)
+    return username, password
+
+
+def _get_admin_headers(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    username, password = _configure_admin_credentials(monkeypatch)
+    response = client.post("/api/admin/auth/login", json={"username": username, "password": password})
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def _create_prompt(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> int:
+    headers = _get_admin_headers(client, monkeypatch)
     payload = {
         "name": "Anime",
         "description": "Soft anime shading",
@@ -25,7 +56,7 @@ def _create_prompt(client: TestClient) -> int:
         "preview_image_url": "/media/previews/anime.jpg",
         "icon_image_url": "/media/icons/anime.png",
     }
-    created = client.post("/api/prompts", json=payload)
+    created = client.post("/api/prompts", json=payload, headers=headers)
     assert created.status_code == 201
     return created.json()["id"]
 
@@ -46,15 +77,15 @@ def test_create_job_and_get_completed_result(monkeypatch) -> None:
     def fake_generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
         assert model
         assert prompt
-        assert image_bytes == b"source-image"
+        assert image_bytes == SOURCE_IMAGE
         return b"generated-image-bytes"
 
     monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
 
     client = TestClient(app)
-    prompt_id = _create_prompt(client)
+    prompt_id = _create_prompt(client, monkeypatch)
 
-    files = {"photo": ("photo.jpg", b"source-image", "image/jpeg")}
+    files = {"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")}
     data = {"prompt_id": str(prompt_id)}
     created = client.post("/api/jobs", files=files, data=data)
     assert created.status_code == 202
@@ -90,15 +121,91 @@ def test_create_job_returns_processing_status_immediately(monkeypatch) -> None:
     monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
 
     client = TestClient(app)
-    prompt_id = _create_prompt(client)
+    prompt_id = _create_prompt(client, monkeypatch)
 
     created = client.post(
         "/api/jobs",
-        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
     assert created.json()["status"] == "processing"
+
+
+def test_create_job_rejects_non_image_upload(monkeypatch) -> None:
+    _reset_db()
+    client = TestClient(app)
+    prompt_id = _create_prompt(client, monkeypatch)
+
+    response = client.post(
+        "/api/jobs",
+        files={"photo": ("photo.txt", b"hello", "text/plain")},
+        data={"prompt_id": str(prompt_id)},
+    )
+
+    assert response.status_code == 400
+
+
+def test_create_job_rejects_oversized_upload(monkeypatch) -> None:
+    _reset_db()
+    client = TestClient(app)
+    prompt_id = _create_prompt(client, monkeypatch)
+    monkeypatch.setattr("app.routers.jobs.MAX_UPLOAD_BYTES", 4)
+
+    response = client.post(
+        "/api/jobs",
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
+        data={"prompt_id": str(prompt_id)},
+    )
+
+    assert response.status_code == 413
+
+
+def test_create_job_does_not_leave_processing_row_when_source_write_fails(monkeypatch, tmp_path: Path) -> None:
+    _reset_db()
+    _patch_storage_dirs(monkeypatch, tmp_path)
+
+    client = TestClient(app, raise_server_exceptions=False)
+    prompt_id = _create_prompt(client, monkeypatch)
+
+    def raise_disk_full(self, data: bytes) -> int:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("app.job_service.Path.write_bytes", raise_disk_full)
+
+    response = client.post(
+        "/api/jobs",
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
+        data={"prompt_id": str(prompt_id)},
+    )
+
+    assert response.status_code == 500
+    with SessionLocal() as db:
+        assert db.query(GenerationJob).count() == 0
+
+
+def test_run_generation_sync_removes_source_when_prompt_was_deleted(monkeypatch, tmp_path: Path) -> None:
+    _reset_db()
+    source_dir, _ = _patch_storage_dirs(monkeypatch, tmp_path)
+
+    client = TestClient(app)
+    prompt_id = _create_prompt(client, monkeypatch)
+
+    with SessionLocal() as db:
+        default_room = get_or_create_default_room(db)
+        job = create_processing_job(db, prompt_id=prompt_id, room_id=default_room.id, source_bytes=SOURCE_IMAGE)
+
+        prompt = db.get(Prompt, prompt_id)
+        assert prompt is not None
+        db.delete(prompt)
+        db.commit()
+
+        result = run_generation_sync(db, job.id)
+        assert result.status == "error"
+        assert result.error_message == "prompt not found"
+        assert result.source_path is None
+
+    assert list(source_dir.iterdir()) == []
 
 
 def test_create_job_uses_saved_model_setting(monkeypatch) -> None:
@@ -112,14 +219,15 @@ def test_create_job_uses_saved_model_setting(monkeypatch) -> None:
     monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
 
     client = TestClient(app)
-    prompt_id = _create_prompt(client)
+    prompt_id = _create_prompt(client, monkeypatch)
+    headers = _get_admin_headers(client, monkeypatch)
 
-    updated = client.put("/api/settings/model", json={"model_name": "openai/gpt-5-image"})
+    updated = client.put("/api/settings/model", json={"model_name": "openai/gpt-5-image"}, headers=headers)
     assert updated.status_code == 200
 
     created = client.post(
         "/api/jobs",
-        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
@@ -143,9 +251,10 @@ def test_create_job_uses_default_room_model_when_it_differs_from_legacy_setting(
     monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
 
     client = TestClient(app)
-    prompt_id = _create_prompt(client)
+    prompt_id = _create_prompt(client, monkeypatch)
+    headers = _get_admin_headers(client, monkeypatch)
 
-    updated = client.put("/api/settings/model", json={"model_name": "openai/gpt-5-image"})
+    updated = client.put("/api/settings/model", json={"model_name": "openai/gpt-5-image"}, headers=headers)
     assert updated.status_code == 200
 
     with SessionLocal() as db:
@@ -157,7 +266,7 @@ def test_create_job_uses_default_room_model_when_it_differs_from_legacy_setting(
 
     created = client.post(
         "/api/jobs",
-        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
@@ -182,14 +291,15 @@ def test_create_job_falls_back_from_legacy_model(monkeypatch, legacy_model: str)
     monkeypatch.setattr("app.openrouter_client.generate_image", fake_generate_image)
 
     client = TestClient(app)
-    prompt_id = _create_prompt(client)
+    prompt_id = _create_prompt(client, monkeypatch)
+    headers = _get_admin_headers(client, monkeypatch)
 
-    updated = client.put("/api/settings/model", json={"model_name": legacy_model})
+    updated = client.put("/api/settings/model", json={"model_name": legacy_model}, headers=headers)
     assert updated.status_code == 200
 
     created = client.post(
         "/api/jobs",
-        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
@@ -209,11 +319,11 @@ def test_create_job_removes_source_photo_after_processing(monkeypatch, tmp_path:
     monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
 
     client = TestClient(app)
-    prompt_id = _create_prompt(client)
+    prompt_id = _create_prompt(client, monkeypatch)
 
     created = client.post(
         "/api/jobs",
-        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
@@ -253,11 +363,11 @@ def test_create_job_removes_results_older_than_retention_days(monkeypatch, tmp_p
     monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
 
     client = TestClient(app)
-    prompt_id = _create_prompt(client)
+    prompt_id = _create_prompt(client, monkeypatch)
 
     created = client.post(
         "/api/jobs",
-        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202
@@ -299,11 +409,11 @@ def test_create_job_keeps_all_recent_results_within_retention_days(monkeypatch, 
     monkeypatch.setattr("app.openrouter_client.generate_image", lambda **kwargs: b"generated-image-bytes")
 
     client = TestClient(app)
-    prompt_id = _create_prompt(client)
+    prompt_id = _create_prompt(client, monkeypatch)
 
     created = client.post(
         "/api/jobs",
-        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        files={"photo": ("photo.jpg", SOURCE_IMAGE, "image/jpeg")},
         data={"prompt_id": str(prompt_id)},
     )
     assert created.status_code == 202

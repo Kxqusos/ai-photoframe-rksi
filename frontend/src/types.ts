@@ -26,6 +26,13 @@ export type RoomCreatePayload = {
   is_active: boolean;
 };
 
+export type RoomPatchPayload = {
+  slug?: string;
+  name?: string;
+  model_name?: string;
+  is_active?: boolean;
+};
+
 export type PublicRoom = {
   id: number;
   slug: string;

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.auth import require_admin
 from app.db import get_db
 from app.job_service import get_or_create_default_room
 from app.models import ModelSetting
@@ -38,7 +39,7 @@ def get_model(db: Session = Depends(get_db)) -> ModelSetting:
     return _get_or_create_setting(db)
 
 
-@router.put("/model", response_model=ModelSettingOut)
+@router.put("/model", response_model=ModelSettingOut, dependencies=[Depends(require_admin)])
 def set_model(payload: ModelSettingIn, db: Session = Depends(get_db)) -> ModelSetting:
     default_room = get_or_create_default_room(db)
     default_room.model_name = payload.model_name

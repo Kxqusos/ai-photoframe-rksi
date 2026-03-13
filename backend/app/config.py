@@ -83,7 +83,7 @@ def configure_logging() -> Path:
 
 class Settings(BaseModel):
     app_name: str = "AI Photoframe API"
-    jwt_secret: str = os.getenv("JWT_SECRET", "change-me-in-production")
+    jwt_secret: str = os.getenv("JWT_SECRET", "")
     jwt_expire_minutes: int = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
     admin_username: str = os.getenv("ADMIN_USERNAME", "admin")
     admin_password: str = os.getenv("ADMIN_PASSWORD", "")

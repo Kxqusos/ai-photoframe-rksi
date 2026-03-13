@@ -59,6 +59,8 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
+    if not DATABASE_URL.startswith("sqlite"):
+        return
     Base.metadata.create_all(bind=engine)
     _migrate_rooms_schema()
     _migrate_generation_jobs_qr_hash()
@@ -70,47 +72,54 @@ def _migrate_rooms_schema() -> None:
         if "rooms" not in tables:
             return
 
-        _ensure_default_room_exists(connection)
         _migrate_room_slugs_to_public_ids(connection)
-        _migrate_room_id_column(connection, "prompts", "ix_prompts_room_id")
-        _migrate_room_id_column(connection, "generation_jobs", "ix_generation_jobs_room_id")
+        _ensure_default_room_exists(connection)
+        default_room_id = _lookup_default_room_id(connection)
+        _migrate_room_id_column(connection, "prompts", "ix_prompts_room_id", default_room_id)
+        _migrate_room_id_column(connection, "generation_jobs", "ix_generation_jobs_room_id", default_room_id)
 
 
-def _ensure_default_room_exists(connection) -> None:
+def _lookup_default_room_id(connection) -> int:
+    row = connection.execute(text("SELECT id FROM rooms WHERE slug = :slug LIMIT 1"), {"slug": DEFAULT_ROOM_SLUG}).fetchone()
+    if row is None:
+        raise RuntimeError("default room is missing after bootstrap")
+    return int(row[0])
+
+
+def _ensure_default_room_exists(connection) -> int:
     if DATABASE_URL.startswith("sqlite"):
         connection.execute(
             text(
                 """
-                INSERT OR IGNORE INTO rooms (id, slug, name, model_name, is_active)
-                VALUES (:id, :slug, :name, :model_name, :is_active)
+                INSERT OR IGNORE INTO rooms (slug, name, model_name, is_active)
+                VALUES (:slug, :name, :model_name, :is_active)
                 """
             ),
             {
-                "id": DEFAULT_ROOM_ID,
                 "slug": DEFAULT_ROOM_SLUG,
                 "name": DEFAULT_ROOM_NAME,
                 "model_name": DEFAULT_ROOM_MODEL,
                 "is_active": 1,
             },
         )
-        return
+        return _lookup_default_room_id(connection)
 
     connection.execute(
         text(
             """
-            INSERT INTO rooms (id, slug, name, model_name, is_active)
-            VALUES (:id, :slug, :name, :model_name, :is_active)
+            INSERT INTO rooms (slug, name, model_name, is_active)
+            VALUES (:slug, :name, :model_name, :is_active)
             ON CONFLICT (slug) DO NOTHING
             """
         ),
         {
-            "id": DEFAULT_ROOM_ID,
             "slug": DEFAULT_ROOM_SLUG,
             "name": DEFAULT_ROOM_NAME,
             "model_name": DEFAULT_ROOM_MODEL,
             "is_active": True,
         },
     )
+    return _lookup_default_room_id(connection)
 
 
 def _generate_unique_room_slug(used_slugs: set[str]) -> str:
@@ -150,7 +159,7 @@ def _migrate_room_slugs_to_public_ids(connection) -> None:
         used_slugs.add(new_slug)
 
 
-def _migrate_room_id_column(connection, table_name: str, index_name: str) -> None:
+def _migrate_room_id_column(connection, table_name: str, index_name: str, default_room_id: int) -> None:
     if table_name not in set(inspect(connection).get_table_names()):
         return
 
@@ -160,7 +169,7 @@ def _migrate_room_id_column(connection, table_name: str, index_name: str) -> Non
 
     connection.execute(
         text(f"UPDATE {table_name} SET room_id = :room_id WHERE room_id IS NULL"),
-        {"room_id": DEFAULT_ROOM_ID},
+        {"room_id": default_room_id},
     )
     connection.execute(text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} (room_id)"))
 

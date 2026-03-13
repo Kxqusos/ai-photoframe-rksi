@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path as FastapiPath, Response, status
 from sqlalchemy.orm import Session
 
+from app.auth import require_admin
 from app.db import get_db
 from app.hash_utils import PUBLIC_ID_PATTERN
 from app.job_service import get_or_create_default_room, get_room_by_slug
@@ -28,7 +29,7 @@ def list_room_prompts(room_slug: PublicIdPath, db: Session = Depends(get_db)) ->
     return db.query(Prompt).filter(Prompt.room_id == room.id).order_by(Prompt.id.asc()).all()
 
 
-@router.post("", response_model=PromptOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PromptOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 def create_prompt(payload: PromptCreate, db: Session = Depends(get_db)) -> Prompt:
     default_room = get_or_create_default_room(db)
     row = Prompt(**payload.model_dump(), room_id=default_room.id)
@@ -38,7 +39,7 @@ def create_prompt(payload: PromptCreate, db: Session = Depends(get_db)) -> Promp
     return row
 
 
-@router.delete("/{prompt_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{prompt_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 def delete_prompt(prompt_id: int, db: Session = Depends(get_db)) -> Response:
     default_room = get_or_create_default_room(db)
     row = db.get(Prompt, prompt_id)

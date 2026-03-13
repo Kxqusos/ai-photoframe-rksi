@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
+import { PromptForm, type PromptFormValues } from "./PromptForm";
 import type { StylePrompt } from "../types";
 
 type PromptCreateInput = {
@@ -9,67 +10,183 @@ type PromptCreateInput = {
   previewFile: File;
 };
 
-type Props = {
-  prompts: StylePrompt[];
-  onCreate: (payload: PromptCreateInput) => Promise<void>;
-  onDelete: (promptId: number) => Promise<void>;
+type PromptUpdateInput = {
+  id: number;
+  name: string;
+  description: string;
+  prompt: string;
+  previewFile: File | null;
+  previewImageUrl: string;
+  iconImageUrl: string;
 };
 
-export function AdminPromptManager({ prompts, onCreate, onDelete }: Props) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [previewFile, setPreviewFile] = useState<File | null>(null);
+type Props = {
+  prompts: StylePrompt[];
+  onCreate: (payload: PromptCreateInput) => Promise<boolean>;
+  onUpdate: (payload: PromptUpdateInput) => Promise<boolean>;
+  onDelete: (promptId: number) => Promise<boolean>;
+};
 
-  async function submit() {
-    if (!name.trim() || !description.trim() || !prompt.trim() || !previewFile) {
+export function AdminPromptManager({ prompts, onCreate, onUpdate, onDelete }: Props) {
+  const [formValues, setFormValues] = useState<PromptFormValues>({
+    name: "",
+    description: "",
+    prompt: "",
+    previewFile: null
+  });
+  const [editingPrompt, setEditingPrompt] = useState<StylePrompt | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingPromptId, setDeletingPromptId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!editingPrompt) {
       return;
     }
 
-    await onCreate({
-      name: name.trim(),
-      description: description.trim(),
-      prompt: prompt.trim(),
-      previewFile
+    if (prompts.some((item) => item.id === editingPrompt.id)) {
+      return;
+    }
+
+    resetForm();
+  }, [editingPrompt, prompts]);
+
+  function resetForm() {
+    setFormValues({
+      name: "",
+      description: "",
+      prompt: "",
+      previewFile: null
     });
-    setName("");
-    setDescription("");
-    setPrompt("");
-    setPreviewFile(null);
+    setEditingPrompt(null);
+    setFileInputKey((current) => current + 1);
+  }
+
+  function startEditing(item: StylePrompt) {
+    setEditingPrompt(item);
+    setFormValues({
+      name: item.name,
+      description: item.description,
+      prompt: item.prompt,
+      previewFile: null
+    });
+    setFileInputKey((current) => current + 1);
+  }
+
+  async function submit() {
+    if (!formValues.name.trim() || !formValues.description.trim() || !formValues.prompt.trim()) {
+      return;
+    }
+
+    if (!editingPrompt && !formValues.previewFile) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (editingPrompt) {
+        const updated = await onUpdate({
+          id: editingPrompt.id,
+          name: formValues.name.trim(),
+          description: formValues.description.trim(),
+          prompt: formValues.prompt.trim(),
+          previewFile: formValues.previewFile,
+          previewImageUrl: editingPrompt.preview_image_url,
+          iconImageUrl: editingPrompt.icon_image_url
+        });
+        if (!updated) {
+          return;
+        }
+        resetForm();
+        return;
+      }
+
+      const created = await onCreate({
+        name: formValues.name.trim(),
+        description: formValues.description.trim(),
+        prompt: formValues.prompt.trim(),
+        previewFile: formValues.previewFile as File
+      });
+      if (!created) {
+        return;
+      }
+      resetForm();
+    } catch {
+      return;
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete(promptId: number) {
+    setDeletingPromptId(promptId);
+    try {
+      const deleted = await onDelete(promptId);
+      if (deleted && editingPrompt?.id === promptId) {
+        resetForm();
+      }
+    } catch {
+      return;
+    } finally {
+      setDeletingPromptId(null);
+    }
   }
 
   return (
-    <section className="panel form-grid" aria-label="управление промптами">
-      <label htmlFor="admin-prompt-name">Название промпта</label>
-      <input id="admin-prompt-name" value={name} onChange={(event) => setName(event.target.value)} />
-
-      <label htmlFor="admin-prompt-description">Описание промпта</label>
-      <input id="admin-prompt-description" value={description} onChange={(event) => setDescription(event.target.value)} />
-
-      <label htmlFor="admin-prompt-text">Текст промпта</label>
-      <textarea id="admin-prompt-text" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
-
-      <label htmlFor="admin-prompt-preview-file">Превью (PNG/JPG/JPEG)</label>
-      <input
-        id="admin-prompt-preview-file"
-        type="file"
-        accept="image/png,image/jpeg,image/jpg"
-        onChange={(event) => setPreviewFile(event.target.files?.[0] ?? null)}
+    <section aria-label="управление промптами">
+      <PromptForm
+        values={formValues}
+        onChange={setFormValues}
+        onSubmit={() => void submit()}
+        onCancel={resetForm}
+        isSubmitting={isSaving}
+        mode={editingPrompt ? "edit" : "create"}
+        fileInputKey={fileInputKey}
+        submitLabel={editingPrompt ? "Сохранить изменения" : "Добавить промпт"}
+        submittingLabel={editingPrompt ? "Сохраняем изменения..." : "Добавляем промпт..."}
+        nameLabel="Название промпта"
+        descriptionLabel="Описание промпта"
+        promptLabel="Текст промпта"
+        previewLabel="Превью (PNG/JPG/JPEG)"
+        previewHint={editingPrompt ? "Оставьте поле пустым, чтобы сохранить текущее превью." : undefined}
       />
 
-      <button type="button" onClick={() => void submit()}>
-        Добавить промпт
-      </button>
-
       <div className="prompt-list">
-        {prompts.map((item) => (
-          <div key={item.id} className="prompt-item">
-            <h3>{item.name}</h3>
-            <button type="button" onClick={() => void onDelete(item.id)}>
-              Удалить {item.name}
-            </button>
+        {prompts.length === 0 ? (
+          <div className="empty-state">
+            <p>Промптов пока нет.</p>
+            <p>Добавьте первый промпт, чтобы у комнаты появился наглядный набор стилей.</p>
           </div>
-        ))}
+        ) : null}
+        {prompts.map((item) => {
+          const isDeleting = deletingPromptId === item.id;
+          return (
+            <article key={item.id} className="prompt-item prompt-card">
+              <div className="prompt-card__media">
+                <img src={item.preview_image_url} alt={`${item.name} preview`} width={120} height={80} />
+              </div>
+              <div className="prompt-card__content">
+                <h3>{item.name}</h3>
+                <p>{item.description}</p>
+                <p className="prompt-card__meta">Превью: {item.preview_image_url}</p>
+              </div>
+              <div className="prompt-item__actions">
+                <button type="button" className="button-secondary" onClick={() => startEditing(item)}>
+                  Редактировать {item.name}
+                </button>
+                <button
+                  type="button"
+                  className="button-danger"
+                  aria-label={isDeleting ? `Удаляем ${item.name}` : `Удалить ${item.name} навсегда`}
+                  onClick={() => void handleDelete(item.id)}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "Удаляем..." : "Удалить навсегда"}
+                </button>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );

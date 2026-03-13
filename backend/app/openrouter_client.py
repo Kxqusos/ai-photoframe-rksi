@@ -247,6 +247,7 @@ def _prepare_source_image_for_request(image_bytes: bytes) -> bytes:
     try:
         with Image.open(BytesIO(image_bytes)) as image:
             original_size = image.size
+            orientation = image.getexif().get(274, 1)
             normalized = ImageOps.exif_transpose(image)
 
             longest_side = max(normalized.size)
@@ -259,7 +260,7 @@ def _prepare_source_image_for_request(image_bytes: bytes) -> bytes:
                 )
                 normalized = normalized.resize(target_size, Image.Resampling.LANCZOS)
 
-            if not needs_resize and image_bytes.startswith(b"\xff\xd8\xff"):
+            if not needs_resize and orientation in {1, None} and image_bytes.startswith(b"\xff\xd8\xff"):
                 return image_bytes
 
             converted = normalized.convert("RGB")
@@ -381,9 +382,9 @@ def generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
             return _transform_output_image(decoded)
 
         if attempt < missing_image_retries:
-            logger.warning("OpenRouter response missing image data (attempt %d), retrying", attempt + 1)
+            logger.warning("API response missing image data (attempt %d), retrying", attempt + 1)
             continue
 
-        raise RuntimeError("OpenRouter response does not contain image data")
+        raise RuntimeError("API response does not contain image data")
 
-    raise RuntimeError("OpenRouter response does not contain image data")
+    raise RuntimeError("API response does not contain image data")

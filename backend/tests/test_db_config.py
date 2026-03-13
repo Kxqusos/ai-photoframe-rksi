@@ -3,6 +3,12 @@ from pathlib import Path
 import app.db as db_module
 
 
+def test_pytest_session_uses_disposable_database_url() -> None:
+    default_path = (Path(__file__).resolve().parents[1] / "photoframe.db").resolve().as_posix()
+    assert db_module.DATABASE_URL.startswith("sqlite:///")
+    assert db_module.DATABASE_URL != f"sqlite:///{default_path}"
+
+
 def test_default_sqlite_url_is_stable_across_working_directories(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
 

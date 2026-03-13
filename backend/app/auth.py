@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.config import settings
 
 JWT_ALGORITHM = "HS256"
+INSECURE_JWT_SECRETS = {"", "change-me-in-production"}
 
 router = APIRouter(prefix="/api/admin/auth", tags=["admin-auth"])
 
@@ -26,6 +27,16 @@ class AdminProfileOut(BaseModel):
     username: str
 
 
+def _get_jwt_secret_or_raise() -> str:
+    secret = settings.jwt_secret.strip()
+    if secret in INSECURE_JWT_SECRETS or len(secret) < 32:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin auth is not configured",
+        )
+    return secret
+
+
 def verify_admin_credentials(username: str, password: str) -> bool:
     if not hmac.compare_digest(username, settings.admin_username):
         return False
@@ -39,12 +50,17 @@ def verify_admin_credentials(username: str, password: str) -> bool:
 def create_access_token(subject: str) -> str:
     expires_at = datetime.now(tz=timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
     payload = {"sub": subject, "exp": expires_at}
-    return jwt.encode(payload, settings.jwt_secret, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, _get_jwt_secret_or_raise(), algorithm=JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict:
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(
+            token,
+            _get_jwt_secret_or_raise(),
+            algorithms=[JWT_ALGORITHM],
+            options={"require": ["exp", "sub"]},
+        )
     except jwt.PyJWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -165,9 +165,26 @@ export function GalleryPage({ roomSlug }: Props) {
 
   return (
     <main className="page gallery-page">
+      <header className="panel gallery-header">
+        <p className="gallery-eyebrow">Подборка комнаты</p>
+        <h1>Лента лучших кадров</h1>
+        <p className="gallery-description">Новые снимки появляются автоматически, поэтому галерея всегда обновляется без перезагрузки.</p>
+      </header>
+
       <section className="gallery-scroll" ref={scrollRef} aria-label="gallery auto scroll">
-        {error ? <p role="alert">{error}</p> : null}
-        {images.length === 0 && !error ? <p className="gallery-empty">Пока нет изображений.</p> : null}
+        {error ? (
+          <div className="gallery-state gallery-state--error">
+            <h2>Не удалось обновить подборку</h2>
+            <p role="alert">{error}</p>
+            <p>Попробуйте открыть галерею чуть позже. Как только сервис вернется, новые кадры снова появятся автоматически.</p>
+          </div>
+        ) : null}
+        {images.length === 0 && !error ? (
+          <div className="gallery-state gallery-empty">
+            <h2>Пока в подборке нет готовых кадров</h2>
+            <p>Первые фотографии появятся здесь автоматически, как только кто-то завершит съемку.</p>
+          </div>
+        ) : null}
         {displayImages.length > 0 ? (
           <div className="gallery-track" ref={trackRef}>
             <div className="gallery-masonry" data-testid="gallery-masonry-group">

@@ -7,6 +7,7 @@ import type { PublicRoom } from "../types";
 
 type Props = {
   currentRoomSlug: string;
+  variant?: "default" | "embedded";
 };
 
 function toDisplayRoomName(room: PublicRoom): string {
@@ -30,7 +31,7 @@ function uniqueBySlug(items: PublicRoom[]): PublicRoom[] {
   return result;
 }
 
-export function PublicRoomMenu({ currentRoomSlug }: Props) {
+export function PublicRoomMenu({ currentRoomSlug, variant = "default" }: Props) {
   const normalizedCurrent = normalizeRoomSlug(currentRoomSlug);
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -65,11 +66,34 @@ export function PublicRoomMenu({ currentRoomSlug }: Props) {
       slug: normalizedCurrent,
       name: normalizedCurrent === DEFAULT_ROOM_SLUG ? "Главная" : normalizedCurrent
     };
-    return uniqueBySlug([fallback, ...rooms]);
+    return uniqueBySlug([...rooms, fallback]);
   }, [normalizedCurrent, rooms]);
 
+  const currentRoomName = useMemo(() => {
+    const current = options.find((room) => room.slug === normalizedCurrent);
+    return toDisplayRoomName(current ?? options[0]);
+  }, [normalizedCurrent, options]);
+
+  const currentSection = (() => {
+    if (typeof window === "undefined") {
+      return "capture";
+    }
+
+    const pathname = window.location.pathname;
+    if (/\/gallery\/?$/i.test(pathname)) {
+      return "gallery";
+    }
+    if (/\/result\/[^/]+\/?$/i.test(pathname)) {
+      return null;
+    }
+    return "capture";
+  })();
+
   return (
-    <header className="public-room-menu" aria-label="навигация по комнатам">
+    <header
+      className={`public-room-menu${variant === "embedded" ? " public-room-menu--embedded" : ""}`}
+      aria-label="навигация по комнатам"
+    >
       <button
         type="button"
         className="public-room-menu__toggle"
@@ -77,34 +101,59 @@ export function PublicRoomMenu({ currentRoomSlug }: Props) {
         aria-expanded={isOpen}
         onClick={() => setIsOpen((value) => !value)}
       >
-        <span />
-        <span />
-        <span />
+        <span className="public-room-menu__toggle-icon" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+        <span className="public-room-menu__toggle-copy">
+          <span className="public-room-menu__toggle-label">Комната</span>
+          <span className="public-room-menu__toggle-room">{currentRoomName}</span>
+        </span>
       </button>
 
       {isOpen ? (
         <div className="public-room-menu__dropdown" role="menu">
-          <label htmlFor="public-room-select">Комната</label>
-          <select
-            id="public-room-select"
-            value={normalizedCurrent}
-            onChange={(event) => {
-              setIsOpen(false);
-              navigateTo(`/${normalizeRoomSlug(event.target.value)}`);
-            }}
-          >
-            {options.map((room) => (
-              <option key={room.slug} value={room.slug}>
-                {toDisplayRoomName(room)}
-              </option>
-            ))}
-          </select>
+          <div className="public-room-menu__room-panel">
+            <div className="public-room-menu__current">
+              <p className="public-room-menu__eyebrow">Текущая комната</p>
+              <p className="public-room-menu__room-name">{currentRoomName}</p>
+            </div>
+
+            <div className="public-room-menu__field">
+              <label htmlFor="public-room-select">Комната</label>
+              <select
+                id="public-room-select"
+                value={normalizedCurrent}
+                onChange={(event) => {
+                  setIsOpen(false);
+                  navigateTo(`/${normalizeRoomSlug(event.target.value)}`);
+                }}
+              >
+                {options.map((room) => (
+                  <option key={room.slug} value={room.slug}>
+                    {toDisplayRoomName(room)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           <nav className="public-room-menu__links" aria-label="разделы комнаты">
-            <a href={`/${normalizedCurrent}`} onClick={() => setIsOpen(false)}>
+            <a
+              href={`/${normalizedCurrent}`}
+              className={`public-room-menu__link${currentSection === "capture" ? " is-active" : ""}`}
+              aria-current={currentSection === "capture" ? "page" : undefined}
+              onClick={() => setIsOpen(false)}
+            >
               Съемка
             </a>
-            <a href={`/${normalizedCurrent}/gallery`} onClick={() => setIsOpen(false)}>
+            <a
+              href={`/${normalizedCurrent}/gallery`}
+              className={`public-room-menu__link${currentSection === "gallery" ? " is-active" : ""}`}
+              aria-current={currentSection === "gallery" ? "page" : undefined}
+              onClick={() => setIsOpen(false)}
+            >
               Галерея
             </a>
           </nav>

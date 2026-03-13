@@ -15,15 +15,20 @@ export function StyleCard({ style, selected, onSelect }: Props) {
       aria-pressed={selected}
       className={`style-card${selected ? " is-selected" : ""}`}
     >
-      <img
-        src={style.preview_image_url}
-        alt={`${style.name} preview`}
-        width={140}
-        height={90}
-        className="style-card__preview"
-      />
-      <h3 className="style-card__title">{style.name}</h3>
-      <p className="style-card__description">{style.description}</p>
+      <div className="style-card__media">
+        <img
+          src={style.preview_image_url}
+          alt={`${style.name} preview`}
+          width={140}
+          height={90}
+          className="style-card__preview"
+        />
+        <span className="style-card__badge">{selected ? "Выбрано" : "Стиль"}</span>
+      </div>
+      <div className="style-card__body">
+        <h3 className="style-card__title">{style.name}</h3>
+        <p className="style-card__description">{style.description}</p>
+      </div>
     </button>
   );
 }
