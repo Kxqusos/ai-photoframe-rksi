@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from photoframe_backend.api.http.routers import admin, jobs, media, prompts, rooms, settings as settings_router
 from photoframe_backend.api.http.security import router as admin_auth_router
+from photoframe_backend.application.services.job_runtime import sync_legacy_storage
 from photoframe_backend.infrastructure.db.bootstrap import bootstrap_default_room
 from photoframe_backend.infrastructure.db.session import DATABASE_URL, engine
 from photoframe_backend.infrastructure.settings.runtime import load_settings
@@ -20,6 +21,7 @@ def on_startup() -> None:
     settings = load_settings()
     app.title = settings.app_name
     configure_logging()
+    sync_legacy_storage()
     bootstrap_default_room(engine=engine, database_url=DATABASE_URL, default_room_slug=DEFAULT_PUBLIC_ID)
 
 

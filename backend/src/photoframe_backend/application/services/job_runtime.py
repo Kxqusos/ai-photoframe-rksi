@@ -1,5 +1,6 @@
 import mimetypes
 import os
+import shutil
 import time
 from urllib.parse import quote
 
@@ -16,10 +17,12 @@ from photoframe_backend.application.services.room_service import RoomService
 from photoframe_backend.infrastructure.db.repositories.jobs import SqlAlchemyJobRepository
 from photoframe_backend.infrastructure.db.repositories.prompts import SqlAlchemyPromptRepository
 from photoframe_backend.infrastructure.db.repositories.rooms import SqlAlchemyRoomRepository
+from photoframe_backend.shared.constants import BACKEND_DIR
 from photoframe_backend.shared.public_ids import DEFAULT_PUBLIC_ID, generate_public_id, is_public_id, normalize_public_id
 
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = BACKEND_DIR
 STORAGE_ROOT = BACKEND_ROOT / "storage"
+LEGACY_STORAGE_ROOT = BACKEND_ROOT / "src" / "photoframe_backend" / "application" / "storage"
 SOURCE_DIR = STORAGE_ROOT / "source"
 RESULT_DIR = STORAGE_ROOT / "results"
 DEFAULT_RESULT_RETENTION_DAYS = 7
@@ -47,6 +50,21 @@ _GALLERY_IMAGE_SUFFIXES = {
     ".heif",
     ".jfif",
 }
+
+
+def sync_legacy_storage() -> None:
+    if not LEGACY_STORAGE_ROOT.exists():
+        return
+
+    for legacy_path in LEGACY_STORAGE_ROOT.rglob("*"):
+        if not legacy_path.is_file():
+            continue
+        relative = legacy_path.relative_to(LEGACY_STORAGE_ROOT)
+        target = STORAGE_ROOT / relative
+        if target.exists():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(legacy_path, target)
 
 
 def _resolve_result_suffix() -> str:

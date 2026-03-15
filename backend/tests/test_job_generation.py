@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from fastapi.staticfiles import StaticFiles
 
 from photoframe_backend.infrastructure.db.base import Base
 from photoframe_backend.infrastructure.db.session import SessionLocal, engine
@@ -39,6 +40,37 @@ def _patch_storage_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tupl
     monkeypatch.setattr("photoframe_backend.application.services.job_runtime.SOURCE_DIR", source_dir)
     monkeypatch.setattr("photoframe_backend.application.services.job_runtime.RESULT_DIR", result_dir)
     return source_dir, result_dir
+
+
+def test_gallery_results_are_served_from_same_storage_root_as_media_mount() -> None:
+    import photoframe_backend.application.services.job_runtime as job_runtime
+
+    media_route = next(route for route in app.routes if getattr(route, "path", None) == "/media")
+    assert isinstance(media_route.app, StaticFiles)
+    assert job_runtime.STORAGE_ROOT == Path(media_route.app.directory)
+
+
+def test_sync_legacy_storage_copies_missing_gallery_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import photoframe_backend.application.services.job_runtime as job_runtime
+
+    storage_root = tmp_path / "storage"
+    result_dir = storage_root / "results"
+    legacy_root = tmp_path / "legacy-storage"
+    legacy_result_dir = legacy_root / "results"
+
+    room_dir = legacy_result_dir / "room-ph000000"
+    room_dir.mkdir(parents=True, exist_ok=True)
+    legacy_file = room_dir / "job-3.jpg"
+    legacy_file.write_bytes(b"legacy-image")
+
+    monkeypatch.setattr(job_runtime, "STORAGE_ROOT", storage_root)
+    monkeypatch.setattr(job_runtime, "RESULT_DIR", result_dir)
+    monkeypatch.setattr(job_runtime, "LEGACY_STORAGE_ROOT", legacy_root)
+
+    job_runtime.sync_legacy_storage()
+
+    copied = result_dir / "room-ph000000" / "job-3.jpg"
+    assert copied.read_bytes() == b"legacy-image"
 
 
 def test_create_job_and_get_completed_result(monkeypatch) -> None:
