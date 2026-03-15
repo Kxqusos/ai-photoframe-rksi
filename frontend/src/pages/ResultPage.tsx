@@ -7,6 +7,7 @@ import type { JobStatus } from "../types";
 type Props = {
   roomSlug: string;
   jpgHash?: string;
+  onRoomMenuLockChange?: (locked: boolean) => void;
 };
 
 function resolveJpgHash(provided?: string): string | null {
@@ -25,11 +26,12 @@ function isTerminalJobStatus(status: JobStatus | null): boolean {
   return status?.status === "completed" || status?.status === "error";
 }
 
-export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {
+export function ResultPage({ roomSlug, jpgHash: providedJpgHash, onRoomMenuLockChange }: Props) {
   const resolvedRoomSlug = useMemo(() => normalizeRoomSlug(roomSlug), [roomSlug]);
   const jpgHash = useMemo(() => resolveJpgHash(providedJpgHash), [providedJpgHash]);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string>("");
+  const [mediaFailed, setMediaFailed] = useState(false);
 
   function onBack() {
     if (window.history.length > 1) {
@@ -38,6 +40,20 @@ export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {
     }
     window.location.assign(`/${resolvedRoomSlug}`);
   }
+
+  useEffect(() => {
+    setMediaFailed(false);
+  }, [jpgHash, job?.result_url, job?.status]);
+
+  useEffect(() => {
+    if (!onRoomMenuLockChange) {
+      return;
+    }
+
+    const locked = !error && !isTerminalJobStatus(job);
+    onRoomMenuLockChange(locked);
+    return () => onRoomMenuLockChange(false);
+  }, [error, job, onRoomMenuLockChange]);
 
   useEffect(() => {
     if (jpgHash === null) {
@@ -78,6 +94,24 @@ export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {
     };
   }, [jpgHash, resolvedRoomSlug]);
 
+  if (mediaFailed) {
+    return (
+      <main className="page result-page result-page--error">
+        <section className="panel result-error-card">
+          <p className="result-eyebrow">ИИ Фоторамка</p>
+          <h1>Не получилось показать готовый кадр</h1>
+          <p className="result-error-text" role="alert">
+            Не удалось загрузить готовое фото
+          </p>
+          <p className="result-error-help">Откройте результат заново или вернитесь к съемке и создайте новый кадр.</p>
+          <button type="button" onClick={onBack}>
+            Вернуться и снять заново
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   if (error) {
     return (
       <main className="page result-page result-page--error">
@@ -105,7 +139,7 @@ export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {
             <h1>Результат готов</h1>
             <p className="result-subtitle">Ваш кадр готов. Следующий шаг: откройте ссылку для скачивания или заберите фото через QR-код.</p>
             <div className="result-media">
-              <img className="result-photo" src={job.result_url} alt="generated photo" />
+              <img className="result-photo" src={job.result_url} alt="generated photo" onError={() => setMediaFailed(true)} />
             </div>
           </section>
 

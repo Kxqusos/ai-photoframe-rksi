@@ -84,3 +84,19 @@ test("shows API room name for non-default rooms and clears section highlight on 
   expect(screen.getByRole("link", { name: "Съемка" })).not.toHaveAttribute("aria-current");
   expect(screen.getByRole("link", { name: "Галерея" })).not.toHaveAttribute("aria-current");
 });
+
+test("disables menu interaction when room switching is locked", async () => {
+  listPublicRoomsMock.mockResolvedValue([{ id: 1, slug: "ph000000", name: "Main" }]);
+
+  render(<PublicRoomMenu currentRoomSlug="ph000000" isLocked />);
+
+  const toggle = screen.getByRole("button", { name: "Меню" });
+  expect(toggle).toBeDisabled();
+
+  fireEvent.click(toggle);
+
+  await waitFor(() => {
+    expect(listPublicRoomsMock).toHaveBeenCalled();
+  });
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+});

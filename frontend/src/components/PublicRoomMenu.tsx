@@ -8,6 +8,7 @@ import type { PublicRoom } from "../types";
 type Props = {
   currentRoomSlug: string;
   variant?: "default" | "embedded";
+  isLocked?: boolean;
 };
 
 function toDisplayRoomName(room: PublicRoom): string {
@@ -31,7 +32,7 @@ function uniqueBySlug(items: PublicRoom[]): PublicRoom[] {
   return result;
 }
 
-export function PublicRoomMenu({ currentRoomSlug, variant = "default" }: Props) {
+export function PublicRoomMenu({ currentRoomSlug, variant = "default", isLocked = false }: Props) {
   const normalizedCurrent = normalizeRoomSlug(currentRoomSlug);
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -59,6 +60,12 @@ export function PublicRoomMenu({ currentRoomSlug, variant = "default" }: Props) 
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (isLocked) {
+      setIsOpen(false);
+    }
+  }, [isLocked]);
 
   const options = useMemo(() => {
     const fallback = {
@@ -99,6 +106,7 @@ export function PublicRoomMenu({ currentRoomSlug, variant = "default" }: Props) 
         className="public-room-menu__toggle"
         aria-label="Меню"
         aria-expanded={isOpen}
+        disabled={isLocked}
         onClick={() => setIsOpen((value) => !value)}
       >
         <span className="public-room-menu__toggle-icon" aria-hidden="true">
@@ -125,6 +133,7 @@ export function PublicRoomMenu({ currentRoomSlug, variant = "default" }: Props) 
               <select
                 id="public-room-select"
                 value={normalizedCurrent}
+                disabled={isLocked}
                 onChange={(event) => {
                   setIsOpen(false);
                   navigateTo(`/${normalizeRoomSlug(event.target.value)}`);
@@ -144,7 +153,14 @@ export function PublicRoomMenu({ currentRoomSlug, variant = "default" }: Props) 
               href={`/${normalizedCurrent}`}
               className={`public-room-menu__link${currentSection === "capture" ? " is-active" : ""}`}
               aria-current={currentSection === "capture" ? "page" : undefined}
-              onClick={() => setIsOpen(false)}
+              aria-disabled={isLocked ? "true" : undefined}
+              onClick={(event) => {
+                if (isLocked) {
+                  event.preventDefault();
+                  return;
+                }
+                setIsOpen(false);
+              }}
             >
               Съемка
             </a>
@@ -152,7 +168,14 @@ export function PublicRoomMenu({ currentRoomSlug, variant = "default" }: Props) 
               href={`/${normalizedCurrent}/gallery`}
               className={`public-room-menu__link${currentSection === "gallery" ? " is-active" : ""}`}
               aria-current={currentSection === "gallery" ? "page" : undefined}
-              onClick={() => setIsOpen(false)}
+              aria-disabled={isLocked ? "true" : undefined}
+              onClick={(event) => {
+                if (isLocked) {
+                  event.preventDefault();
+                  return;
+                }
+                setIsOpen(false);
+              }}
             >
               Галерея
             </a>

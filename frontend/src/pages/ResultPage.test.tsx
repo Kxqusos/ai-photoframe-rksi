@@ -1,5 +1,5 @@
 import React from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
 import { ResultPage } from "./ResultPage";
@@ -58,6 +58,24 @@ test("shows download call to action as the next step when job completes", async 
   expect(screen.getByRole("link", { name: /скачать фото через qr-код/i })).toBeInTheDocument();
   expect(screen.getByAltText(/download qr/i)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /продолжить/i })).not.toBeInTheDocument();
+});
+
+test("shows recovery state when completed result image cannot be loaded", async () => {
+  getJobStatusMock.mockResolvedValue({
+    id: "dddddddd",
+    status: "completed",
+    result_url: "/qr/dddddddd",
+    download_url: "/qr/dddddddd",
+    qr_url: "/api/jobs/hash/dddddddd/qr"
+  });
+
+  render(<ResultPage roomSlug="aaaaaaaa" jpgHash="dddddddd" />);
+
+  const image = await screen.findByAltText(/generated photo/i);
+  fireEvent.error(image);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Не удалось загрузить готовое фото");
+  expect(screen.getByRole("button", { name: /вернуться и снять заново/i })).toBeInTheDocument();
 });
 
 test("shows visible recovery route when generation fails", async () => {
@@ -123,4 +141,37 @@ test("stops polling after the job reaches a completed terminal state", async () 
   });
 
   expect(getJobStatusMock).toHaveBeenCalledTimes(1);
+});
+
+test("locks room switching while result is still processing and unlocks after completion", async () => {
+  vi.useFakeTimers();
+  const onRoomMenuLockChange = vi.fn();
+  getJobStatusMock
+    .mockResolvedValueOnce({
+      id: "dddddddd",
+      status: "processing"
+    })
+    .mockResolvedValueOnce({
+      id: "dddddddd",
+      status: "completed",
+      result_url: "/qr/dddddddd",
+      download_url: "/qr/dddddddd",
+      qr_url: "/api/jobs/hash/dddddddd/qr"
+    });
+
+  render(<ResultPage roomSlug="aaaaaaaa" jpgHash="dddddddd" onRoomMenuLockChange={onRoomMenuLockChange} />);
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(onRoomMenuLockChange).toHaveBeenCalledWith(true);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1500);
+    await Promise.resolve();
+  });
+
+  expect(screen.getByText(/результат готов/i)).toBeInTheDocument();
+  expect(onRoomMenuLockChange).toHaveBeenCalledWith(false);
 });

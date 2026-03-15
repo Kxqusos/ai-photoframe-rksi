@@ -17,15 +17,16 @@ function resolvePathname(): string {
   return window.location.pathname;
 }
 
-function renderShell(content: React.ReactNode, options?: { roomSlug?: string; showMenu?: boolean }) {
+function renderShell(content: React.ReactNode, options?: { roomSlug?: string; showMenu?: boolean; roomMenuLocked?: boolean }) {
   const roomSlug = options?.roomSlug;
   const showMenu = options?.showMenu ?? false;
+  const roomMenuLocked = options?.roomMenuLocked ?? false;
 
   return (
     <div className={`app-shell app-shell--studio${roomSlug ? " app-shell--public" : ""}`}>
       {showMenu ? (
         <div className="app-shell__header app-shell__header--public">
-          <PublicRoomMenu currentRoomSlug={roomSlug ?? DEFAULT_ROOM_SLUG} />
+          <PublicRoomMenu currentRoomSlug={roomSlug ?? DEFAULT_ROOM_SLUG} isLocked={roomMenuLocked} />
         </div>
       ) : null}
       <div className="app-shell__content app-shell__content--public">{content}</div>
@@ -35,12 +36,17 @@ function renderShell(content: React.ReactNode, options?: { roomSlug?: string; sh
 
 export default function App() {
   const [pathname, setPathname] = useState(resolvePathname);
+  const [roomMenuLocked, setRoomMenuLocked] = useState(false);
 
   useEffect(() => {
     const onPopstate = () => setPathname(resolvePathname());
     window.addEventListener("popstate", onPopstate);
     return () => window.removeEventListener("popstate", onPopstate);
   }, []);
+
+  useEffect(() => {
+    setRoomMenuLocked(false);
+  }, [pathname]);
 
   if (pathname === "/admin/login") {
     return renderShell(<AdminLoginPage />);
@@ -57,9 +63,10 @@ export default function App() {
 
   const route = resolvePublicRoute(pathname);
   if (route?.page === "result") {
-    return renderShell(<ResultPage roomSlug={route.roomSlug} jpgHash={route.jpgHash} />, {
+    return renderShell(<ResultPage roomSlug={route.roomSlug} jpgHash={route.jpgHash} onRoomMenuLockChange={setRoomMenuLocked} />, {
       roomSlug: route.roomSlug,
-      showMenu: true
+      showMenu: true,
+      roomMenuLocked
     });
   }
   if (route?.page === "gallery") {
