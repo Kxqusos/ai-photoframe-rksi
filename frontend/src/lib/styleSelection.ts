@@ -28,7 +28,3 @@ export function writeStoredStyleId(styleId: number, roomSlug: string = DEFAULT_R
   }
   window.localStorage.setItem(styleStorageKey(roomSlug), String(styleId));
 }
-
-export function readStyleIdFromQuery(search: string): number | null {
-  return parseStyleId(new URLSearchParams(search).get("selectedId"));
-}

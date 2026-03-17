@@ -36,12 +36,6 @@ vi.mock("../lib/api", () => ({
   createRoomJob: (roomSlug: string, photo: File, promptId: number) => createJobMock(roomSlug, photo, promptId)
 }));
 
-vi.mock("../components/PublicRoomMenu", () => ({
-  PublicRoomMenu: ({ currentRoomSlug, variant }: { currentRoomSlug: string; variant?: string }) => (
-    <div data-testid="embedded-room-menu">{`${currentRoomSlug}:${variant ?? "default"}`}</div>
-  )
-}));
-
 beforeEach(() => {
   vi.useRealTimers();
   listPromptsMock.mockResolvedValue([
@@ -83,7 +77,6 @@ test("renders fullscreen camera preview with overlay capture button", async () =
 
   expect(screen.getByLabelText(/camera preview/i)).toHaveClass("capture-screen");
   expect(screen.getByTestId("camera-preview")).toHaveClass("capture-screen__preview");
-  expect(within(screen.getByLabelText(/capture controls/i)).getByTestId("embedded-room-menu")).toHaveTextContent("aaaaaaaa:embedded");
   expect(screen.getByRole("button", { name: /сделать фото/i })).toBeInTheDocument();
   const stylesPanel = await screen.findByLabelText(/style selection/i);
   expect(stylesPanel).toHaveClass("capture-screen__styles-panel");
@@ -166,6 +159,8 @@ test("shows selected style summary and ready state when camera is available", as
   expect(within(controls).getByRole("heading", { name: "Anime" })).toBeInTheDocument();
   expect(within(controls).getByText("Soft anime shading")).toBeInTheDocument();
   expect(within(controls).queryByText(/камера готова/i)).not.toBeInTheDocument();
+  expect(within(controls).queryByText(/стиль выбран/i)).not.toBeInTheDocument();
+  expect(within(controls).queryByText(/стиль не выбран/i)).not.toBeInTheDocument();
   await waitFor(() => {
     expect(within(controls).getByRole("button", { name: /сделать фото/i })).toBeEnabled();
   });

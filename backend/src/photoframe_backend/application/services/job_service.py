@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from pathlib import Path
 
@@ -5,6 +6,8 @@ from photoframe_backend.application.services.prompt_service import PromptService
 from photoframe_backend.application.services.room_service import RoomService
 from photoframe_backend.domain.repositories.jobs import JobRepository
 from photoframe_backend.infrastructure.db.models import GenerationJob
+
+logger = logging.getLogger(__name__)
 
 
 class JobService:
@@ -98,6 +101,15 @@ class JobService:
             job.status = "completed"
             job.error_message = None
         except Exception as exc:
+            logger.exception(
+                "Generation job failed",
+                extra={
+                    "job_id": job.id,
+                    "room_id": job.room_id,
+                    "prompt_id": job.prompt_id,
+                    "room_model_name": room.model_name,
+                },
+            )
             job.status = "error"
             job.error_message = str(exc)
         finally:

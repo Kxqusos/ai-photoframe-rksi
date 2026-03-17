@@ -19,6 +19,15 @@ class ModelSettingIn(BaseModel):
     model_name: str
 
 
+class RoomAccessIn(BaseModel):
+    password: str
+
+
+class RoomAccessOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 class ModelSettingOut(BaseModel):
     id: int
     model_name: str
@@ -53,5 +62,7 @@ __all__ = [
     "ModelSettingIn",
     "ModelSettingOut",
     "PublicId",
+    "RoomAccessIn",
+    "RoomAccessOut",
     "PublicRoomOut",
 ]

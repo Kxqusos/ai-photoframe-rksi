@@ -8,6 +8,7 @@ def test_docs_cover_room_and_admin_contract() -> None:
     frontend_env = Path("../frontend/.env.example").read_text(encoding="utf-8")
 
     assert "GET /api/rooms" in api_contract
+    assert "POST /api/rooms/{slug}/access" in api_contract
     assert "GET /api/rooms/{slug}/prompts" in api_contract
     assert "POST /api/rooms/{slug}/jobs" in api_contract
     assert "GET /api/rooms/{slug}/jobs/gallery" in api_contract
@@ -16,6 +17,7 @@ def test_docs_cover_room_and_admin_contract() -> None:
     assert "POST /api/admin/auth/login" in api_contract
     assert "GET /api/admin/auth/me" in api_contract
     assert "GET /api/admin/rooms" in api_contract
+    assert "password" in api_contract
     assert "PATCH /api/admin/rooms/{room_id}" in api_contract
     assert "DELETE /api/admin/rooms/{room_id}" in api_contract
     assert "PUT /api/admin/rooms/{room_id}/model" in api_contract
@@ -27,6 +29,7 @@ def test_docs_cover_room_and_admin_contract() -> None:
     assert "APP__DEFAULT_PUBLIC_ROOM_SLUG" in backend_env
 
     assert "AUTH__ADMIN_PASSWORD" in run_local
+    assert "password" in run_local
     assert "/ph000000" in run_local
     assert "/admin/login" in run_local
 

@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminLoginPage } from "./pages/AdminLoginPage";
 import { AdminRoomEditorPage } from "./pages/AdminRoomEditorPage";
-import { PublicRoomMenu } from "./components/PublicRoomMenu";
 import { CapturePage } from "./pages/CapturePage";
 import { GalleryPage } from "./pages/GalleryPage";
+import { PublicLandingPage } from "./pages/PublicLandingPage";
 import { ResultPage } from "./pages/ResultPage";
+import { hasRoomAccessToken } from "./lib/roomAccess";
 import { DEFAULT_ROOM_SLUG, resolvePublicRoute } from "./lib/roomRouting";
 
 function resolvePathname(): string {
@@ -17,36 +18,31 @@ function resolvePathname(): string {
   return window.location.pathname;
 }
 
-function renderShell(content: React.ReactNode, options?: { roomSlug?: string; showMenu?: boolean; roomMenuLocked?: boolean }) {
-  const roomSlug = options?.roomSlug;
-  const showMenu = options?.showMenu ?? false;
-  const roomMenuLocked = options?.roomMenuLocked ?? false;
+function renderShell(content: React.ReactNode, options?: { publicShell?: boolean }) {
+  if (options?.publicShell) {
+    return (
+      <div className="app-shell app-shell--studio app-shell--public">
+        <div className="app-shell__content app-shell__content--public">{content}</div>
+      </div>
+    );
+  }
 
   return (
-    <div className={`app-shell app-shell--studio${roomSlug ? " app-shell--public" : ""}`}>
-      {showMenu ? (
-        <div className="app-shell__header app-shell__header--public">
-          <PublicRoomMenu currentRoomSlug={roomSlug ?? DEFAULT_ROOM_SLUG} isLocked={roomMenuLocked} />
-        </div>
-      ) : null}
-      <div className="app-shell__content app-shell__content--public">{content}</div>
+    <div className="app-shell app-shell--studio">
+      <div className="app-shell__content">{content}</div>
     </div>
   );
 }
 
 export default function App() {
   const [pathname, setPathname] = useState(resolvePathname);
-  const [roomMenuLocked, setRoomMenuLocked] = useState(false);
+  const hasDefaultRoomAccess = hasRoomAccessToken(DEFAULT_ROOM_SLUG);
 
   useEffect(() => {
     const onPopstate = () => setPathname(resolvePathname());
     window.addEventListener("popstate", onPopstate);
     return () => window.removeEventListener("popstate", onPopstate);
   }, []);
-
-  useEffect(() => {
-    setRoomMenuLocked(false);
-  }, [pathname]);
 
   if (pathname === "/admin/login") {
     return renderShell(<AdminLoginPage />);
@@ -61,23 +57,26 @@ export default function App() {
     return renderShell(<AdminRoomEditorPage roomSlug={adminRoomMatch[1].toLowerCase()} />);
   }
 
-  const route = resolvePublicRoute(pathname);
-  if (route?.page === "result") {
-    return renderShell(<ResultPage roomSlug={route.roomSlug} jpgHash={route.jpgHash} onRoomMenuLockChange={setRoomMenuLocked} />, {
-      roomSlug: route.roomSlug,
-      showMenu: true,
-      roomMenuLocked
-    });
-  }
-  if (route?.page === "gallery") {
-    return renderShell(<GalleryPage roomSlug={route.roomSlug} />, {
-      roomSlug: route.roomSlug,
-      showMenu: true
-    });
-  }
-  if (route?.page === "capture") {
-    return renderShell(<CapturePage roomSlug={route.roomSlug} />, { roomSlug: route.roomSlug });
+  if (pathname === "/") {
+    if (hasDefaultRoomAccess) {
+      return renderShell(<CapturePage roomSlug={DEFAULT_ROOM_SLUG} />, { publicShell: true });
+    }
+    return renderShell(<PublicLandingPage />);
   }
 
-  return renderShell(<CapturePage roomSlug={DEFAULT_ROOM_SLUG} />, { roomSlug: DEFAULT_ROOM_SLUG });
+  const route = resolvePublicRoute(pathname);
+  if (route && !hasRoomAccessToken(route.roomSlug)) {
+    return renderShell(<PublicLandingPage initialRoomSlug={route.roomSlug} redirectPath={pathname} />);
+  }
+  if (route?.page === "result") {
+    return renderShell(<ResultPage roomSlug={route.roomSlug} jpgHash={route.jpgHash} />, { publicShell: true });
+  }
+  if (route?.page === "gallery") {
+    return renderShell(<GalleryPage roomSlug={route.roomSlug} />, { publicShell: true });
+  }
+  if (route?.page === "capture") {
+    return renderShell(<CapturePage roomSlug={route.roomSlug} />, { publicShell: true });
+  }
+
+  return renderShell(<PublicLandingPage initialRoomSlug={DEFAULT_ROOM_SLUG} />);
 }

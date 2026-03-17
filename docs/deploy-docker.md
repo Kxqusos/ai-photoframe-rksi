@@ -1,16 +1,16 @@
 # Docker Deploy
 
-Docker assets are now split by role:
+The project now uses a single standalone root `docker-compose.yml`.
+
+Supporting assets remain split by role:
 - `deploy/docker/`: image definitions
-- `deploy/compose/`: dev and prod Compose entrypoints
 - `deploy/env/`: example env files for backend and postgres
 - `deploy/scripts/`: container startup helpers
 
 ## Validation
-Validate the staged Compose files before bringing anything up:
+Validate the root Compose file before bringing anything up:
 ```bash
-docker compose -f deploy/compose/docker-compose.dev.yml config
-docker compose -f deploy/compose/docker-compose.prod.yml config
+docker compose config
 ```
 
 ## Env Files
@@ -26,25 +26,52 @@ Then edit at least:
 - `POSTGRES_PASSWORD`
 - `OPENROUTER__API_KEY`
 
-## Dev Stack
-```bash
-docker compose -f deploy/compose/docker-compose.dev.yml up --build
+Recommended minimums before first deploy:
+- Set `AUTH__JWT_SECRET` to a random secret with at least 32 bytes.
+- Set `AUTH__ADMIN_PASSWORD` and `POSTGRES_PASSWORD` to non-default values.
+- If you use direct `openai_compatible`, also fill `OPENAI_COMPATIBLE__BASE_URL` and `OPENAI_COMPATIBLE__API_KEY`.
+
+## LLM Routing via VLESS+Reality
+The stack now includes:
+- `xray-client`: client-side Xray container that applies a `vless://...` Reality link
+- `llm-egress`: internal proxy used only for LLM provider traffic
+
+You do not need to prefill the VLESS link in env files for the first startup.
+Recommended flow:
+1. Start the stack once.
+2. Open `/admin/login`.
+3. Go to the `LLM Routing` card in admin dashboard.
+4. Paste the full `vless://...` URI.
+5. Click `Сохранить и применить`.
+6. Click `Проверить подключение`.
+7. When status becomes `active`, click `Включить маршрутизацию`.
+
+If you want to preconfigure internal service URLs explicitly, keep these values:
+```env
+ROUTING_LLM_EGRESS_URL=http://llm-egress:8080
+ROUTING_XRAY_CLIENT_URL=http://xray-client:8081
 ```
 
-Dev services:
+## Start Stack
+```bash
+docker compose up -d --build
+```
+
+Services:
 - `postgres`: PostgreSQL 17 with healthcheck and persistent volume
-- `backend`: waits for PostgreSQL, runs Alembic migrations, bootstraps default room, then starts `uvicorn --reload`
+- `backend`: waits for PostgreSQL, runs Alembic migrations, bootstraps default room, then starts a single `uvicorn` process
+- `xray-client`: applies VLESS+Reality client config and exposes local proxy ports for routed traffic
+- `llm-egress`: forwards current LLM requests through `xray-client`
 - `frontend`: runs Vite dev server behind nginx
 - `nginx`: public entrypoint for frontend and backend routes
 
-The root `docker-compose.yml` forwards to the dev stack for convenience.
-
-## Prod Stack
+After the first deploy, useful checks:
 ```bash
-docker compose -f deploy/compose/docker-compose.prod.yml up --build -d
+docker compose ps
+docker compose logs backend --tail=100
+docker compose logs llm-egress --tail=100
+docker compose logs xray-client --tail=100
 ```
-
-Prod compose keeps the same topology, removes source mounts and reload-mode settings, and serves the built frontend through a static file server inside the frontend container.
 
 ## SQLite Cutover
 - Runtime and deployment are PostgreSQL-first.

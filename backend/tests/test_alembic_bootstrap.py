@@ -37,6 +37,14 @@ def test_alembic_revision_ids_fit_version_table_limit() -> None:
         assert len(revision) <= 32, f"{path.name} revision exceeds alembic_version.version_num limit"
 
 
+def test_llm_routing_migration_uses_postgres_safe_boolean_default() -> None:
+    migration_path = Path(__file__).resolve().parents[1] / "alembic" / "versions" / "20260317_01_llm_routing_settings.py"
+    migration = migration_path.read_text(encoding="utf-8")
+
+    assert 'server_default=sa.text("0")' not in migration
+    assert 'server_default=sa.text("false")' in migration
+
+
 def test_app_startup_does_not_run_schema_mutation(monkeypatch, tmp_path: Path) -> None:
     import photoframe_backend.infrastructure.db.bootstrap as bootstrap_module
 
@@ -74,6 +82,54 @@ def test_default_room_bootstrap_is_idempotent_after_migrations(tmp_path: Path) -
     assert rows == [("ph000000", "Main", "openai/gpt-5-image")]
 
 
+def test_default_room_bootstrap_syncs_postgres_style_room_sequence(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'bootstrap-sequence.db'}"
+    engine = sa.create_engine(database_url, connect_args={"check_same_thread": False})
+
+    run_migrations(database_url)
+    with engine.begin() as connection:
+        connection.execute(sa.text("DELETE FROM rooms"))
+
+    bootstrap_default_room(engine=engine, database_url=database_url)
+
+    with engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO rooms (slug, name, model_name, is_active, room_password_hash)
+                VALUES ('aaaaaaaa', 'Room A', 'openai/gpt-5-image', 1, '')
+                """
+            )
+        )
+        rows = connection.execute(sa.text("SELECT id, slug FROM rooms ORDER BY id ASC")).all()
+
+    assert rows == [(1, "ph000000"), (2, "aaaaaaaa")]
+
+
+def test_default_room_bootstrap_backfills_missing_room_password_hash(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'bootstrap-password.db'}"
+    engine = sa.create_engine(database_url, connect_args={"check_same_thread": False})
+
+    run_migrations(database_url)
+    with engine.begin() as connection:
+        connection.execute(sa.text("UPDATE rooms SET room_password_hash = '' WHERE slug = 'ph000000'"))
+
+    bootstrap_default_room(
+        engine=engine,
+        database_url=database_url,
+        default_room_slug=db_module.DEFAULT_ROOM_SLUG,
+        fallback_room_password="admin-room-pass",
+    )
+
+    with engine.begin() as connection:
+        password_hash = connection.execute(
+            sa.text("SELECT room_password_hash FROM rooms WHERE slug = 'ph000000'")
+        ).scalar_one()
+
+    assert isinstance(password_hash, str)
+    assert password_hash.startswith("scrypt$")
+
+
 def test_cli_helpers_use_grouped_db_env_only(monkeypatch) -> None:
     captured: dict[str, str] = {}
 
@@ -89,7 +145,7 @@ def test_cli_helpers_use_grouped_db_env_only(monkeypatch) -> None:
         captured["migrations_url"] = config.get_main_option("sqlalchemy.url")
         captured["revision"] = revision
 
-    def fake_bootstrap_default_room(*, engine, database_url: str, default_room_slug: str) -> None:
+    def fake_bootstrap_default_room(*, engine, database_url: str, default_room_slug: str, fallback_room_password: str = "") -> None:
         captured["bootstrap_url"] = database_url
         captured["bootstrap_slug"] = default_room_slug
 

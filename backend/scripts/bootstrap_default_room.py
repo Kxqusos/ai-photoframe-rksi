@@ -13,13 +13,19 @@ def _cli_database_url() -> str:
     return _resolve_database_url(os.getenv("DATABASE_URL"))
 
 
-def bootstrap_default_room(engine=None, database_url: str | None = None, default_room_slug: str = "ph000000") -> None:
+def bootstrap_default_room(
+    engine=None,
+    database_url: str | None = None,
+    default_room_slug: str = "ph000000",
+    fallback_room_password: str = "",
+) -> None:
     resolved_database_url = database_url or os.environ["DATABASE_URL"]
     resolved_engine = engine or build_engine(resolved_database_url)
     bootstrap_default_room_impl(
         engine=resolved_engine,
         database_url=resolved_database_url,
         default_room_slug=default_room_slug,
+        fallback_room_password=fallback_room_password,
     )
 
 

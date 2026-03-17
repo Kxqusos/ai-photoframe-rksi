@@ -1,5 +1,7 @@
 from pathlib import Path
 import time
+import base64
+import hashlib
 
 from fastapi.testclient import TestClient
 
@@ -14,11 +16,45 @@ def _reset_db() -> None:
     Base.metadata.create_all(bind=engine)
 
 
+def _hash_room_password(password: str) -> str:
+    salt = b"room-access-test-salt"
+    derived = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1)
+    return f"scrypt${base64.b64encode(salt).decode()}${base64.b64encode(derived).decode()}"
+
+
+def _room_headers(token: str | None = None) -> dict[str, str]:
+    return {"X-Room-Access-Token": token} if token else {}
+
+
+def _get_room_access_token(client: TestClient, room_slug: str, password: str) -> str:
+    response = client.post(f"/api/rooms/{room_slug}/access", json={"password": password})
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
 def _seed_rooms_and_prompts() -> dict[str, int]:
     with SessionLocal() as db:
-        room_main = Room(slug="ph000000", name="Main", model_name="openai/gpt-5-image", is_active=True)
-        room_a = Room(slug="aaaaaaaa", name="Room A", model_name="openai/gpt-5-image", is_active=True)
-        room_b = Room(slug="bbbbbbbb", name="Room B", model_name="google/gemini-2.5-flash-image", is_active=True)
+        room_main = Room(
+            slug="ph000000",
+            name="Main",
+            model_name="openai/gpt-5-image",
+            is_active=True,
+            room_password_hash=_hash_room_password("main-pass"),
+        )
+        room_a = Room(
+            slug="aaaaaaaa",
+            name="Room A",
+            model_name="openai/gpt-5-image",
+            is_active=True,
+            room_password_hash=_hash_room_password("room-a-pass"),
+        )
+        room_b = Room(
+            slug="bbbbbbbb",
+            name="Room B",
+            model_name="google/gemini-2.5-flash-image",
+            is_active=True,
+            room_password_hash=_hash_room_password("room-b-pass"),
+        )
         db.add_all([room_main, room_a, room_b])
         db.commit()
         db.refresh(room_main)
@@ -58,8 +94,9 @@ def test_room_prompts_endpoint_returns_only_room_prompts() -> None:
     _reset_db()
     _seed_rooms_and_prompts()
     client = TestClient(app)
+    token = _get_room_access_token(client, "aaaaaaaa", "room-a-pass")
 
-    response = client.get("/api/rooms/aaaaaaaa/prompts")
+    response = client.get("/api/rooms/aaaaaaaa/prompts", headers=_room_headers(token))
 
     assert response.status_code == 200
     body = response.json()
@@ -71,9 +108,11 @@ def test_room_job_creation_rejects_prompt_from_another_room() -> None:
     _reset_db()
     ids = _seed_rooms_and_prompts()
     client = TestClient(app)
+    token = _get_room_access_token(client, "aaaaaaaa", "room-a-pass")
 
     response = client.post(
         "/api/rooms/aaaaaaaa/jobs",
+        headers=_room_headers(token),
         files={"photo": ("photo.jpg", b"photo-bytes", "image/jpeg")},
         data={"prompt_id": str(ids["prompt_b_id"])},
     )
@@ -88,6 +127,7 @@ def test_room_gallery_endpoint_returns_only_room_results(monkeypatch, tmp_path: 
     result_root = tmp_path / "results"
     monkeypatch.setattr("photoframe_backend.application.services.job_runtime.RESULT_DIR", result_root)
     client = TestClient(app)
+    token = _get_room_access_token(client, "aaaaaaaa", "room-a-pass")
 
     room_a_dir = result_root / "room-aaaaaaaa"
     room_b_dir = result_root / "room-bbbbbbbb"
@@ -120,7 +160,7 @@ def test_room_gallery_endpoint_returns_only_room_results(monkeypatch, tmp_path: 
         )
         db.commit()
 
-    response = client.get("/api/rooms/aaaaaaaa/jobs/gallery")
+    response = client.get("/api/rooms/aaaaaaaa/jobs/gallery", headers=_room_headers(token))
 
     assert response.status_code == 200
     body = response.json()
@@ -145,7 +185,8 @@ def test_room_hash_endpoint_enforces_room_ownership() -> None:
         )
         db.commit()
 
-    response = client.get("/api/rooms/bbbbbbbb/jobs/hash/cccccccc")
+    token = _get_room_access_token(client, "bbbbbbbb", "room-b-pass")
+    response = client.get("/api/rooms/bbbbbbbb/jobs/hash/cccccccc", headers=_room_headers(token))
     assert response.status_code == 404
 
 
@@ -167,13 +208,38 @@ def test_room_job_status_by_id_returns_room_scoped_status() -> None:
         db.refresh(job)
         job_id = job.id
 
-    response = client.get(f"/api/rooms/aaaaaaaa/jobs/{job_id}")
+    token_a = _get_room_access_token(client, "aaaaaaaa", "room-a-pass")
+    token_b = _get_room_access_token(client, "bbbbbbbb", "room-b-pass")
+
+    response = client.get(f"/api/rooms/aaaaaaaa/jobs/{job_id}", headers=_room_headers(token_a))
     assert response.status_code == 200
     assert response.json()["id"] == "dddddddd"
-    assert response.json()["qr_url"] == "/api/rooms/aaaaaaaa/jobs/hash/dddddddd/qr"
+    assert response.json()["qr_url"] == "/api/jobs/hash/dddddddd/qr"
 
-    wrong_room = client.get(f"/api/rooms/bbbbbbbb/jobs/{job_id}")
+    wrong_room = client.get(f"/api/rooms/bbbbbbbb/jobs/{job_id}", headers=_room_headers(token_b))
     assert wrong_room.status_code == 404
+
+
+def test_public_qr_png_endpoint_works_for_completed_room_scoped_job() -> None:
+    _reset_db()
+    ids = _seed_rooms_and_prompts()
+    client = TestClient(app)
+
+    with SessionLocal() as db:
+        job = GenerationJob(
+            prompt_id=ids["prompt_a_id"],
+            room_id=ids["room_a_id"],
+            status="completed",
+            qr_hash="qrroom01",
+            result_path="/tmp/job-room-a.jpg",
+        )
+        db.add(job)
+        db.commit()
+
+    response = client.get("/api/jobs/hash/qrroom01/qr")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
 
 
 def test_room_job_generation_uses_room_model(monkeypatch) -> None:
@@ -187,9 +253,12 @@ def test_room_job_generation_uses_room_model(monkeypatch) -> None:
 
     monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", fake_generate_image)
     client = TestClient(app)
+    token_a = _get_room_access_token(client, "aaaaaaaa", "room-a-pass")
+    token_b = _get_room_access_token(client, "bbbbbbbb", "room-b-pass")
 
     created_a = client.post(
         "/api/rooms/aaaaaaaa/jobs",
+        headers=_room_headers(token_a),
         files={"photo": ("photo-a.jpg", b"photo-a", "image/jpeg")},
         data={"prompt_id": str(ids["prompt_a_id"])},
     )
@@ -197,14 +266,15 @@ def test_room_job_generation_uses_room_model(monkeypatch) -> None:
 
     created_b = client.post(
         "/api/rooms/bbbbbbbb/jobs",
+        headers=_room_headers(token_b),
         files={"photo": ("photo-b.jpg", b"photo-b", "image/jpeg")},
         data={"prompt_id": str(ids["prompt_b_id"])},
     )
     assert created_b.status_code == 202
 
     for _ in range(30):
-        status_a = client.get(f"/api/rooms/aaaaaaaa/jobs/hash/{created_a.json()['id']}")
-        status_b = client.get(f"/api/rooms/bbbbbbbb/jobs/hash/{created_b.json()['id']}")
+        status_a = client.get(f"/api/rooms/aaaaaaaa/jobs/hash/{created_a.json()['id']}", headers=_room_headers(token_a))
+        status_b = client.get(f"/api/rooms/bbbbbbbb/jobs/hash/{created_b.json()['id']}", headers=_room_headers(token_b))
         if status_a.status_code == 200 and status_b.status_code == 200:
             if status_a.json()["status"] == "completed" and status_b.json()["status"] == "completed":
                 break
@@ -212,3 +282,32 @@ def test_room_job_generation_uses_room_model(monkeypatch) -> None:
 
     assert "openai/gpt-5-image" in captured_models
     assert "google/gemini-2.5-flash-image" in captured_models
+
+
+def test_room_access_endpoint_rejects_wrong_password() -> None:
+    _reset_db()
+    _seed_rooms_and_prompts()
+    client = TestClient(app)
+
+    response = client.post("/api/rooms/aaaaaaaa/access", json={"password": "wrong-pass"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "invalid room password"
+
+
+def test_room_scoped_public_endpoints_require_room_access_token() -> None:
+    _reset_db()
+    ids = _seed_rooms_and_prompts()
+    client = TestClient(app)
+
+    prompts = client.get("/api/rooms/aaaaaaaa/prompts")
+    create_job = client.post(
+        "/api/rooms/aaaaaaaa/jobs",
+        files={"photo": ("photo.jpg", b"photo-bytes", "image/jpeg")},
+        data={"prompt_id": str(ids["prompt_a_id"])},
+    )
+    gallery = client.get("/api/rooms/aaaaaaaa/jobs/gallery")
+
+    assert prompts.status_code == 401
+    assert create_job.status_code == 401
+    assert gallery.status_code == 401

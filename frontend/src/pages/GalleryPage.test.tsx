@@ -1,5 +1,5 @@
 import React from "react";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, vi } from "vitest";
 
 import { GalleryPage } from "./GalleryPage";
@@ -137,6 +137,147 @@ test("keeps auto scroll moving when browser stores scrollTop as integer", async 
   });
 
   expect(scrollTopValue).toBeGreaterThan(0);
+});
+
+test("pauses auto scroll during manual input and resumes after 3 seconds of inactivity", async () => {
+  listGalleryResultsMock.mockResolvedValueOnce([
+    { name: "loop-a.jpg", url: "/media/results/loop-a.jpg", modified_at: 20 },
+    { name: "loop-b.jpg", url: "/media/results/loop-b.jpg", modified_at: 10 }
+  ]);
+
+  let rafCallback: FrameRequestCallback | null = null;
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      rafCallback = callback;
+      return 1;
+    })
+  );
+
+  render(<GalleryPage roomSlug="aaaaaaaa" />);
+
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  const container = screen.getByLabelText("gallery auto scroll");
+  const track = container.querySelector(".gallery-track");
+  expect(track).not.toBeNull();
+
+  Object.defineProperty(container, "clientHeight", {
+    configurable: true,
+    value: 300
+  });
+  Object.defineProperty(track, "scrollHeight", {
+    configurable: true,
+    value: 1000
+  });
+
+  let scrollTopValue = 0;
+  Object.defineProperty(container, "scrollTop", {
+    configurable: true,
+    get: () => scrollTopValue,
+    set: (next: number) => {
+      scrollTopValue = next;
+    }
+  });
+
+  await act(async () => {
+    vi.setSystemTime(new Date("2026-03-16T12:00:00.000Z"));
+    rafCallback?.(0);
+    rafCallback?.(1000);
+    fireEvent.wheel(container);
+    rafCallback?.(2000);
+    rafCallback?.(3000);
+  });
+
+  const pausedAt = scrollTopValue;
+
+  await act(async () => {
+    vi.setSystemTime(new Date("2026-03-16T12:00:03.100Z"));
+    rafCallback?.(4000);
+    rafCallback?.(5000);
+  });
+
+  expect(scrollTopValue).toBeGreaterThan(pausedAt);
+});
+
+test("does not pause auto scroll on its own programmatic scroll events", async () => {
+  listGalleryResultsMock.mockResolvedValueOnce([
+    { name: "loop-a.jpg", url: "/media/results/loop-a.jpg", modified_at: 20 },
+    { name: "loop-b.jpg", url: "/media/results/loop-b.jpg", modified_at: 10 }
+  ]);
+
+  let rafCallback: FrameRequestCallback | null = null;
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      rafCallback = callback;
+      return 1;
+    })
+  );
+
+  render(<GalleryPage roomSlug="aaaaaaaa" />);
+
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  const container = screen.getByLabelText("gallery auto scroll");
+  const track = container.querySelector(".gallery-track");
+  expect(track).not.toBeNull();
+
+  Object.defineProperty(container, "clientHeight", {
+    configurable: true,
+    value: 300
+  });
+  Object.defineProperty(track, "scrollHeight", {
+    configurable: true,
+    value: 1000
+  });
+
+  let scrollTopValue = 0;
+  Object.defineProperty(container, "scrollTop", {
+    configurable: true,
+    get: () => scrollTopValue,
+    set: (next: number) => {
+      scrollTopValue = next;
+    }
+  });
+
+  await act(async () => {
+    vi.setSystemTime(new Date("2026-03-16T12:10:00.000Z"));
+    rafCallback?.(0);
+    rafCallback?.(1000);
+    rafCallback?.(2000);
+  });
+
+  const afterFirstMove = scrollTopValue;
+  expect(afterFirstMove).toBeGreaterThan(0);
+
+  await act(async () => {
+    fireEvent.scroll(container);
+    rafCallback?.(3000);
+  });
+
+  expect(scrollTopValue).toBeGreaterThan(afterFirstMove);
+});
+
+test("uses a dedicated rounded scroll viewport for manual and automatic scrolling", async () => {
+  listGalleryResultsMock.mockResolvedValueOnce([
+    { name: "photo.jpg", url: "/media/results/photo.jpg", modified_at: 10 }
+  ]);
+
+  render(<GalleryPage roomSlug="aaaaaaaa" />);
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  const viewport = screen.getByLabelText("gallery auto scroll");
+  expect(viewport).toHaveClass("gallery-scroll__viewport");
 });
 
 test("renders curated empty state when gallery has no images yet", async () => {

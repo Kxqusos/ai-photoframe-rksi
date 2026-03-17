@@ -40,9 +40,9 @@ Frontend starts at `http://127.0.0.1:5173`.
 
 ## End-to-end check
 1. Open `/admin/login`, sign in with `AUTH__ADMIN_USERNAME` and `AUTH__ADMIN_PASSWORD`.
-2. In `/admin`, create two rooms with different models and short slugs (`8` chars `[a-z0-9]`), for example `aaaaaaaa`, `bbbbbbbb`.
+2. In `/admin`, create two rooms with different models, passwords, and short slugs (`8` chars `[a-z0-9]`), for example `aaaaaaaa`, `bbbbbbbb`.
 3. In each room editor, create prompts and upload preview/icon media.
-4. Open `/ph000000` (or another room slug), upload a photo, and generate an image.
+4. Open `/`, pick a room, enter its password, then upload a photo and generate an image.
 5. Open `/ph000000/gallery` and verify only that room's results are shown.
 6. Resolve status via `GET /api/rooms/ph000000/jobs/hash/{jpg_hash}` and confirm room scoping.
 7. Verify `/qr/{qr_hash}` downloads generated file.

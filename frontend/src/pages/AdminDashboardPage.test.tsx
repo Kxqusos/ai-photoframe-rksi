@@ -9,6 +9,10 @@ const listRoomsMock = vi.fn();
 const createRoomMock = vi.fn();
 const patchRoomMock = vi.fn();
 const deleteRoomMock = vi.fn();
+const getLlmRoutingMock = vi.fn();
+const updateLlmRoutingConfigMock = vi.fn();
+const testLlmRoutingMock = vi.fn();
+const toggleLlmRoutingMock = vi.fn();
 
 vi.mock("../lib/auth", () => ({
   loadAdminToken: () => loadAdminTokenMock()
@@ -18,7 +22,11 @@ vi.mock("../lib/api", () => ({
   listRooms: () => listRoomsMock(),
   createRoom: (payload: unknown) => createRoomMock(payload),
   patchRoom: (roomId: number, payload: unknown) => patchRoomMock(roomId, payload),
-  deleteRoom: (roomId: number) => deleteRoomMock(roomId)
+  deleteRoom: (roomId: number) => deleteRoomMock(roomId),
+  getLlmRouting: () => getLlmRoutingMock(),
+  updateLlmRoutingConfig: (vlessUri: string) => updateLlmRoutingConfigMock(vlessUri),
+  testLlmRouting: () => testLlmRoutingMock(),
+  toggleLlmRouting: (enabled: boolean) => toggleLlmRoutingMock(enabled)
 }));
 
 beforeEach(() => {
@@ -27,6 +35,18 @@ beforeEach(() => {
   createRoomMock.mockReset();
   patchRoomMock.mockReset();
   deleteRoomMock.mockReset();
+  getLlmRoutingMock.mockReset();
+  updateLlmRoutingConfigMock.mockReset();
+  testLlmRoutingMock.mockReset();
+  toggleLlmRoutingMock.mockReset();
+  getLlmRoutingMock.mockResolvedValue({
+    enabled: false,
+    status: "disabled",
+    vless_uri: "",
+    last_error: null,
+    last_checked_at: null,
+    last_applied_at: null
+  });
 });
 
 test("redirects to /admin/login when token is missing", () => {
@@ -59,13 +79,15 @@ test("loads rooms and allows creating a room", async () => {
   expect(screen.getByRole("link", { name: /открыть room a/i })).toHaveClass("button-secondary");
 
   fireEvent.change(screen.getByLabelText(/название/i), { target: { value: "Room B" } });
+  fireEvent.change(screen.getByLabelText(/пароль комнаты/i), { target: { value: "room-b-pass" } });
   fireEvent.click(screen.getByRole("button", { name: /создать комнату/i }));
 
   return waitFor(() => {
     expect(createRoomMock).toHaveBeenCalledWith({
       name: "Room B",
       model_name: "openai/gpt-5-image",
-      is_active: true
+      is_active: true,
+      password: "room-b-pass"
     });
   });
 });
@@ -124,7 +146,7 @@ test("allows editing and deleting rooms from the dashboard", async () => {
   });
 
   expect(await screen.findByRole("heading", { name: /room a updated/i })).toBeInTheDocument();
-  expect(screen.getByText(/выключена/i)).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /room a updated/i }).closest("article")).toHaveTextContent(/выключена/i);
 
   fireEvent.click(screen.getByRole("button", { name: /удалить room a updated/i }));
 
@@ -160,5 +182,58 @@ test("shows room patch/delete errors and allows cancelling edit mode", async () 
 
   await waitFor(() => {
     expect(screen.getByRole("alert")).toHaveTextContent(/delete failed/i);
+  });
+});
+
+test("loads llm routing card and allows saving, testing and toggling routing", async () => {
+  loadAdminTokenMock.mockReturnValue("jwt-token");
+  listRoomsMock.mockResolvedValue([{ id: 1, slug: "aaaaaaaa", name: "Room A", model_name: "m", is_active: true }]);
+  updateLlmRoutingConfigMock.mockResolvedValue({
+    enabled: false,
+    status: "error",
+    vless_uri: "vless://uuid@example.com:443",
+    last_error: "probe timeout",
+    last_checked_at: "2026-03-17T12:00:00",
+    last_applied_at: "2026-03-17T12:00:00"
+  });
+  testLlmRoutingMock.mockResolvedValue({
+    enabled: false,
+    status: "disabled",
+    vless_uri: "vless://uuid@example.com:443",
+    last_error: null,
+    last_checked_at: "2026-03-17T12:01:00",
+    last_applied_at: "2026-03-17T12:01:00"
+  });
+  toggleLlmRoutingMock.mockResolvedValue({
+    enabled: true,
+    status: "active",
+    vless_uri: "vless://uuid@example.com:443",
+    last_error: null,
+    last_checked_at: "2026-03-17T12:02:00",
+    last_applied_at: "2026-03-17T12:02:00"
+  });
+
+  render(<AdminDashboardPage />);
+
+  expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /llm routing/i })).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText(/vless uri/i), { target: { value: "vless://uuid@example.com:443" } });
+  fireEvent.click(screen.getByRole("button", { name: /сохранить и применить/i }));
+
+  await waitFor(() => {
+    expect(updateLlmRoutingConfigMock).toHaveBeenCalledWith("vless://uuid@example.com:443");
+    expect(screen.getByText(/probe timeout/i)).toBeInTheDocument();
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: /проверить подключение/i }));
+  await waitFor(() => {
+    expect(testLlmRoutingMock).toHaveBeenCalled();
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: /включить маршрутизацию/i }));
+  await waitFor(() => {
+    expect(toggleLlmRoutingMock).toHaveBeenCalledWith(true);
+    expect(screen.getByText(/active/i)).toBeInTheDocument();
   });
 });

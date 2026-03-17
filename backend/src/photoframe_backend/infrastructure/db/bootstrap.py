@@ -1,4 +1,7 @@
 from collections.abc import Callable
+import base64
+import hashlib
+import secrets
 
 from sqlalchemy import inspect, text
 
@@ -7,7 +10,13 @@ DEFAULT_ROOM_NAME = "Main"
 DEFAULT_ROOM_MODEL = "openai/gpt-5-image"
 
 
-def bootstrap_default_room(*, engine, database_url: str, default_room_slug: str) -> None:
+def _hash_room_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    derived = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1)
+    return f"scrypt${base64.b64encode(salt).decode()}${base64.b64encode(derived).decode()}"
+
+
+def bootstrap_default_room(*, engine, database_url: str, default_room_slug: str, fallback_room_password: str = "") -> None:
     with engine.begin() as connection:
         tables = set(inspect(connection).get_table_names())
         if "rooms" not in tables:
@@ -17,7 +26,14 @@ def bootstrap_default_room(*, engine, database_url: str, default_room_slug: str)
             connection=connection,
             database_url=database_url,
             default_room_slug=default_room_slug,
+            fallback_room_password=fallback_room_password,
         )
+        _backfill_default_room_password(
+            connection=connection,
+            default_room_slug=default_room_slug,
+            fallback_room_password=fallback_room_password,
+        )
+        _sync_room_id_sequence(connection, database_url)
 
 
 def init_db(
@@ -26,10 +42,16 @@ def init_db(
     engine,
     database_url: str,
     default_room_slug: str,
+    fallback_room_password: str = "",
     generate_public_id: Callable[[], str],
     is_public_id: Callable[[str], bool],
 ) -> None:
-    bootstrap_default_room(engine=engine, database_url=database_url, default_room_slug=default_room_slug)
+    bootstrap_default_room(
+        engine=engine,
+        database_url=database_url,
+        default_room_slug=default_room_slug,
+        fallback_room_password=fallback_room_password,
+    )
 
 
 def _migrate_rooms_schema(*, engine, database_url: str, default_room_slug: str, generate_public_id, is_public_id) -> None:
@@ -49,13 +71,14 @@ def _migrate_rooms_schema(*, engine, database_url: str, default_room_slug: str, 
         _migrate_room_id_column(connection, "generation_jobs", "ix_generation_jobs_room_id")
 
 
-def _ensure_default_room_exists(*, connection, database_url: str, default_room_slug: str) -> None:
+def _ensure_default_room_exists(*, connection, database_url: str, default_room_slug: str, fallback_room_password: str) -> None:
+    password_hash = _hash_room_password(fallback_room_password) if fallback_room_password else ""
     if database_url.startswith("sqlite"):
         connection.execute(
             text(
                 """
-                INSERT OR IGNORE INTO rooms (id, slug, name, model_name, is_active)
-                VALUES (:id, :slug, :name, :model_name, :is_active)
+                INSERT OR IGNORE INTO rooms (id, slug, name, model_name, is_active, room_password_hash)
+                VALUES (:id, :slug, :name, :model_name, :is_active, :room_password_hash)
                 """
             ),
             {
@@ -64,6 +87,7 @@ def _ensure_default_room_exists(*, connection, database_url: str, default_room_s
                 "name": DEFAULT_ROOM_NAME,
                 "model_name": DEFAULT_ROOM_MODEL,
                 "is_active": 1,
+                "room_password_hash": password_hash,
             },
         )
         return
@@ -71,8 +95,8 @@ def _ensure_default_room_exists(*, connection, database_url: str, default_room_s
     connection.execute(
         text(
             """
-            INSERT INTO rooms (id, slug, name, model_name, is_active)
-            VALUES (:id, :slug, :name, :model_name, :is_active)
+            INSERT INTO rooms (id, slug, name, model_name, is_active, room_password_hash)
+            VALUES (:id, :slug, :name, :model_name, :is_active, :room_password_hash)
             ON CONFLICT (slug) DO NOTHING
             """
         ),
@@ -82,7 +106,41 @@ def _ensure_default_room_exists(*, connection, database_url: str, default_room_s
             "name": DEFAULT_ROOM_NAME,
             "model_name": DEFAULT_ROOM_MODEL,
             "is_active": True,
+            "room_password_hash": password_hash,
         },
+    )
+
+
+def _backfill_default_room_password(*, connection, default_room_slug: str, fallback_room_password: str) -> None:
+    if not fallback_room_password:
+        return
+    current_hash = connection.execute(
+        text("SELECT room_password_hash FROM rooms WHERE slug = :slug"),
+        {"slug": default_room_slug},
+    ).scalar_one_or_none()
+    if current_hash:
+        return
+    connection.execute(
+        text("UPDATE rooms SET room_password_hash = :password_hash WHERE slug = :slug"),
+        {"slug": default_room_slug, "password_hash": _hash_room_password(fallback_room_password)},
+    )
+
+
+def _sync_room_id_sequence(connection, database_url: str) -> None:
+    if database_url.startswith("sqlite"):
+        # SQLite rowid tables already continue from max(id) after explicit inserts.
+        return
+
+    connection.execute(
+        text(
+            """
+            SELECT setval(
+              pg_get_serial_sequence('rooms', 'id'),
+              COALESCE((SELECT MAX(id) FROM rooms), 1),
+              true
+            )
+            """
+        )
     )
 
 

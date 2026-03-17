@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
   adminLogin,
+  getLlmRouting,
+  testLlmRouting,
+  toggleLlmRouting,
+  updateLlmRoutingConfig,
   deleteRoom,
   createRoomJob,
   getRoomJobStatus,
@@ -12,6 +16,7 @@ import {
   updateRoomAdminPrompt
 } from "./api";
 import { clearAdminToken, loadAdminToken, saveAdminToken } from "./auth";
+import { saveRoomAccessToken } from "./roomAccess";
 
 const fetchMock = vi.fn();
 
@@ -19,6 +24,8 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   window.localStorage.clear();
+  window.sessionStorage.clear();
+  saveRoomAccessToken("aaaaaaaa", "room-token");
 });
 
 describe("room-scoped public API client", () => {
@@ -34,17 +41,35 @@ describe("room-scoped public API client", () => {
     await getRoomJobStatus("aaaaaaaa", "dddddddd");
     await listRoomGalleryResults("aaaaaaaa");
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("/api/rooms/aaaaaaaa/prompts"));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/api/rooms/aaaaaaaa/prompts"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Room-Access-Token": "room-token" })
+      })
+    );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining("/api/rooms/aaaaaaaa/jobs"),
-      expect.objectContaining({ method: "POST" })
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-Room-Access-Token": "room-token" })
+      })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
-      expect.stringContaining("/api/rooms/aaaaaaaa/jobs/hash/dddddddd")
+      expect.stringContaining("/api/rooms/aaaaaaaa/jobs/hash/dddddddd"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Room-Access-Token": "room-token" })
+      })
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(4, expect.stringContaining("/api/rooms/aaaaaaaa/jobs/gallery"));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("/api/rooms/aaaaaaaa/jobs/gallery"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Room-Access-Token": "room-token" })
+      })
+    );
   });
 
   test("requests status directly from hash endpoint", async () => {
@@ -56,7 +81,10 @@ describe("room-scoped public API client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining("/api/rooms/aaaaaaaa/jobs/hash/abcd1234")
+      expect.stringContaining("/api/rooms/aaaaaaaa/jobs/hash/abcd1234"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Room-Access-Token": "room-token" })
+      })
     );
   });
 });
@@ -183,6 +211,122 @@ describe("admin API client", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer jwt-token"
         })
+      })
+    );
+  });
+
+  test("reads llm routing settings via protected admin endpoint", async () => {
+    saveAdminToken("jwt-token");
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          enabled: false,
+          status: "disabled",
+          vless_uri: "",
+          last_error: null,
+          last_checked_at: null,
+          last_applied_at: null
+        }),
+        { status: 200 }
+      )
+    );
+
+    await getLlmRouting();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/admin/llm-routing"),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-token"
+        })
+      })
+    );
+  });
+
+  test("updates llm routing config via protected admin endpoint", async () => {
+    saveAdminToken("jwt-token");
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          enabled: false,
+          status: "error",
+          vless_uri: "vless://uuid@example.com:443",
+          last_error: "probe timeout",
+          last_checked_at: "2026-03-17T12:00:00",
+          last_applied_at: "2026-03-17T12:00:00"
+        }),
+        { status: 200 }
+      )
+    );
+
+    await updateLlmRoutingConfig("vless://uuid@example.com:443");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/admin/llm-routing/config"),
+      expect.objectContaining({
+        method: "PUT",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-token",
+          "Content-Type": "application/json"
+        }),
+        body: JSON.stringify({ vless_uri: "vless://uuid@example.com:443" })
+      })
+    );
+  });
+
+  test("tests and toggles llm routing via protected admin endpoints", async () => {
+    saveAdminToken("jwt-token");
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            enabled: false,
+            status: "disabled",
+            vless_uri: "vless://uuid@example.com:443",
+            last_error: null,
+            last_checked_at: "2026-03-17T12:00:00",
+            last_applied_at: "2026-03-17T12:00:00"
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            enabled: true,
+            status: "active",
+            vless_uri: "vless://uuid@example.com:443",
+            last_error: null,
+            last_checked_at: "2026-03-17T12:01:00",
+            last_applied_at: "2026-03-17T12:01:00"
+          }),
+          { status: 200 }
+        )
+      );
+
+    await testLlmRouting();
+    await toggleLlmRouting(true);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/api/admin/llm-routing/test"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-token"
+        })
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/api/admin/llm-routing/toggle"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-token",
+          "Content-Type": "application/json"
+        }),
+        body: JSON.stringify({ enabled: true })
       })
     );
   });

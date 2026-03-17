@@ -16,6 +16,7 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
   const [slug, setSlug] = useState("");
   const [modelName, setModelName] = useState(DEFAULT_MODEL);
   const [isActive, setIsActive] = useState(true);
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (!editingRoom) {
@@ -23,6 +24,7 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
       setSlug("");
       setModelName(DEFAULT_MODEL);
       setIsActive(true);
+      setPassword("");
       return;
     }
 
@@ -30,10 +32,11 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
     setSlug(editingRoom.slug);
     setModelName(editingRoom.model_name);
     setIsActive(editingRoom.is_active);
+    setPassword("");
   }, [editingRoom]);
 
   async function submit() {
-    if (!name.trim()) {
+    if (!name.trim() || (!editingRoom && !password.trim())) {
       return;
     }
 
@@ -46,7 +49,8 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
         slug: slug.trim(),
         name: name.trim(),
         model_name: modelName.trim() || DEFAULT_MODEL,
-        is_active: isActive
+        is_active: isActive,
+        password: password.trim() || undefined
       });
       if (!updated) {
         return;
@@ -57,13 +61,15 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
     const created = await onCreate({
       name: name.trim(),
       model_name: modelName.trim() || DEFAULT_MODEL,
-      is_active: true
+      is_active: true,
+      password: password.trim()
     });
     if (!created) {
       return;
     }
     setName("");
     setModelName(DEFAULT_MODEL);
+    setPassword("");
   }
 
   function cancelEdit() {
@@ -95,6 +101,15 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
 
       <label htmlFor="admin-room-model">Модель</label>
       <input id="admin-room-model" value={modelName} onChange={(event) => setModelName(event.target.value)} />
+
+      <label htmlFor="admin-room-password">Пароль комнаты</label>
+      <input
+        id="admin-room-password"
+        type="password"
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        placeholder={editingRoom ? "Оставьте пустым, чтобы не менять" : "Введите пароль комнаты"}
+      />
 
       {editingRoom ? (
         <>

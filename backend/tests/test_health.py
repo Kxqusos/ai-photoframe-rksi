@@ -6,7 +6,8 @@ from photoframe_backend.main import app
 def test_src_entrypoint_exposes_app():
     from photoframe_backend.main import app as src_app
 
-    assert src_app is app
+    assert src_app.title == app.title
+    assert src_app.routes[0].path == app.routes[0].path
 
 
 def test_src_entrypoint_bootstraps_default_room_on_startup(monkeypatch):

@@ -1,4 +1,6 @@
 import os
+import sys
+import importlib
 from pathlib import Path
 
 import photoframe_backend.infrastructure.db.runtime as db_module
@@ -43,4 +45,48 @@ def test_pytest_db_isolation_overrides_preexisting_runtime_database_url(monkeypa
     assert os.environ["TEST_DATABASE_URL"] == test_conftest._TEST_DATABASE_URL
     assert load_settings(allow_test_defaults=True).database_url == (
         "postgresql+psycopg://pytest_user:pytest_pass@postgres.internal:5433/photoframe_test"
+    )
+
+
+def test_main_import_does_not_let_legacy_env_file_override_grouped_database_settings(tmp_path: Path, monkeypatch) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=sqlite:///./photoframe.db",
+                "JWT_SECRET=legacy-secret",
+                "ADMIN_PASSWORD=legacy-admin",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("APP__ENV", "test")
+    monkeypatch.setenv("DB__HOST", "postgres.internal")
+    monkeypatch.setenv("DB__PORT", "5433")
+    monkeypatch.setenv("DB__NAME", "photoframe_runtime")
+    monkeypatch.setenv("DB__USER", "runtime_user")
+    monkeypatch.setenv("DB__PASSWORD", "runtime_pass")
+
+    import photoframe_backend.shared.constants as constants
+
+    monkeypatch.setattr(constants, "DEFAULT_ENV_FILE", env_path)
+
+    for module_name in [
+        "photoframe_backend.api.http.security",
+        "photoframe_backend.shared.logging",
+        "photoframe_backend.infrastructure.db.session",
+        "photoframe_backend.infrastructure.db.runtime",
+        "photoframe_backend.main",
+    ]:
+        sys.modules.pop(module_name, None)
+
+    main_module = importlib.import_module("photoframe_backend.main")
+    session_module = importlib.import_module("photoframe_backend.infrastructure.db.session")
+
+    assert main_module.app.title
+    assert session_module.DATABASE_URL == (
+        "postgresql+psycopg://runtime_user:runtime_pass@postgres.internal:5433/photoframe_runtime"
     )

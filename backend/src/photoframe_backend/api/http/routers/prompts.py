@@ -1,12 +1,14 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
-from photoframe_backend.api.http.dependencies import DbSession, PublicIdPath
+from fastapi import Depends
+
+from photoframe_backend.api.http.dependencies import DbSession, PublicIdPath, require_room_access
 from photoframe_backend.api.http.schemas.admin import PromptCreate, PromptOut
 from photoframe_backend.application.services.job_runtime import get_or_create_default_room, get_room_by_slug
 from photoframe_backend.infrastructure.db.models import Prompt
 
 router = APIRouter(prefix="/api/prompts", tags=["prompts"])
-room_router = APIRouter(prefix="/api/rooms/{room_slug}/prompts", tags=["prompts"])
+room_router = APIRouter(prefix="/api/rooms/{room_slug}/prompts", tags=["prompts"], dependencies=[Depends(require_room_access)])
 
 
 @router.get("", response_model=list[PromptOut])

@@ -24,16 +24,25 @@ test("shows intentional loading copy and stable placeholder while image is proce
     status: "processing"
   });
 
-  render(<ResultPage roomSlug="aaaaaaaa" jpgHash="dddddddd" />);
+  const { container } = render(<ResultPage roomSlug="aaaaaaaa" jpgHash="dddddddd" />);
 
   expect(await screen.findByText(/собираем ваш финальный кадр/i)).toBeInTheDocument();
   expect(screen.getByText(/обычно это занимает меньше минуты/i)).toBeInTheDocument();
-  expect(screen.getByTestId("result-loading-preview")).toBeInTheDocument();
+  expect(
+    screen.queryByText(/не закрывайте страницу: как только изображение будет готово, здесь появится результат и ссылка для скачивания/i)
+  ).not.toBeInTheDocument();
+  expect(screen.queryByTestId("result-loading-preview")).not.toBeInTheDocument();
+
+  const card = container.querySelector(".result-loading-card");
+  expect(card?.querySelector(".result-loading-header")).not.toBeNull();
+  expect(card?.querySelector(".result-loading-title")).not.toBeNull();
+  expect(card?.querySelector(".result-loading-copy")).not.toBeNull();
+
   const progress = document.querySelector(".result-loading-bar__progress--indeterminate");
   expect(progress).toBeInTheDocument();
 });
 
-test("shows download call to action as the next step when job completes", async () => {
+test("shows centered qr pickup guidance when job completes", async () => {
   getJobStatusMock.mockResolvedValue({
     id: "dddddddd",
     status: "completed",
@@ -47,16 +56,20 @@ test("shows download call to action as the next step when job completes", async 
   expect(getJobStatusMock).toHaveBeenCalledWith("aaaaaaaa", "dddddddd");
 
   expect(await screen.findByAltText(/generated photo/i)).toBeInTheDocument();
-  expect(screen.getByRole("main")).toHaveTextContent("Результат готов");
-  expect(screen.getByRole("heading", { name: /скачайте фото/i })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: /открыть ссылку для скачивания/i })).toHaveAttribute(
-    "href",
-    "/qr/dddddddd"
-  );
-  expect(screen.getByText(/или отсканируйте qr-код камерой телефона/i)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /назад/i })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: /скачать фото через qr-код/i })).toBeInTheDocument();
+  expect(screen.queryByText(/результат готов/i)).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/ваш кадр готов\. заберите его на телефон через qr-код или сохраните прямо с этого экрана/i)
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /заберите фото на телефон/i })).toBeInTheDocument();
+  expect(screen.getByText(/отсканируйте qr-код камерой телефона/i)).toBeInTheDocument();
+  expect(screen.getByText(/после сканирования откроется страница с готовым кадром/i)).toBeInTheDocument();
+  const backButton = screen.getByRole("button", { name: /назад/i });
+  const qrLink = screen.getByRole("link", { name: /скачать фото через qr-код/i });
+  expect(backButton).toBeInTheDocument();
+  expect(qrLink).toBeInTheDocument();
+  expect(qrLink.compareDocumentPosition(backButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.getByAltText(/download qr/i)).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /открыть ссылку для скачивания/i })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /продолжить/i })).not.toBeInTheDocument();
 });
 
@@ -133,7 +146,7 @@ test("stops polling after the job reaches a completed terminal state", async () 
     await Promise.resolve();
   });
 
-  expect(screen.getByText(/результат готов/i)).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /заберите фото на телефон/i })).toBeInTheDocument();
   expect(getJobStatusMock).toHaveBeenCalledTimes(1);
 
   await act(async () => {
@@ -141,37 +154,4 @@ test("stops polling after the job reaches a completed terminal state", async () 
   });
 
   expect(getJobStatusMock).toHaveBeenCalledTimes(1);
-});
-
-test("locks room switching while result is still processing and unlocks after completion", async () => {
-  vi.useFakeTimers();
-  const onRoomMenuLockChange = vi.fn();
-  getJobStatusMock
-    .mockResolvedValueOnce({
-      id: "dddddddd",
-      status: "processing"
-    })
-    .mockResolvedValueOnce({
-      id: "dddddddd",
-      status: "completed",
-      result_url: "/qr/dddddddd",
-      download_url: "/qr/dddddddd",
-      qr_url: "/api/jobs/hash/dddddddd/qr"
-    });
-
-  render(<ResultPage roomSlug="aaaaaaaa" jpgHash="dddddddd" onRoomMenuLockChange={onRoomMenuLockChange} />);
-
-  await act(async () => {
-    await Promise.resolve();
-  });
-
-  expect(onRoomMenuLockChange).toHaveBeenCalledWith(true);
-
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(1500);
-    await Promise.resolve();
-  });
-
-  expect(screen.getByText(/результат готов/i)).toBeInTheDocument();
-  expect(onRoomMenuLockChange).toHaveBeenCalledWith(false);
 });

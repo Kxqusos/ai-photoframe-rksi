@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, ForeignKey, String, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from photoframe_backend.infrastructure.db.base import Base
@@ -12,6 +14,7 @@ class Room(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     model_name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    room_password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
 
 
 class ModelSetting(Base):
@@ -19,6 +22,18 @@ class ModelSetting(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class LlmRoutingSetting(Base):
+    __tablename__ = "llm_routing_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="disabled")
+    vless_uri: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    last_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
 
 
 class Prompt(Base):

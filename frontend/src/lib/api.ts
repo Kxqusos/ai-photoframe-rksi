@@ -4,15 +4,17 @@ import type {
   JobCreated,
   JobStatus,
   MediaUploadResponse,
-  ModelSetting,
   PublicRoom,
   PromptCreate,
+  RoomAccessToken,
   RoomCreatePayload,
   RoomPatchPayload,
   Room,
+  LlmRoutingSettings,
   StylePrompt
 } from "../types";
 import { loadAdminToken } from "./auth";
+import { getRoomAccessToken } from "./roomAccess";
 import { DEFAULT_ROOM_SLUG, buildRoomApiPath, normalizeResultHash, normalizeRoomSlug } from "./roomRouting";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -26,7 +28,6 @@ const FALLBACK_STYLES: StylePrompt[] = [
     icon_image_url: "/media/icons/anime.png"
   }
 ];
-const DEFAULT_MODEL = "openai/gpt-5-image";
 const AVAILABLE_MODELS = [
   "openai/gpt-5-image",
   "google/gemini-2.5-flash-image",
@@ -50,20 +51,25 @@ function roomSlugOrDefault(roomSlug: string): string {
   return normalizeRoomSlug(roomSlug || DEFAULT_ROOM_SLUG);
 }
 
-export async function listPrompts(): Promise<StylePrompt[]> {
-  return listRoomPrompts(DEFAULT_ROOM_SLUG);
+function requireRoomHeaders(roomSlug: string, extraHeaders?: RequestHeaders): RequestHeaders {
+  const token = getRoomAccessToken(roomSlug);
+  if (!token) {
+    throw new Error("Room access token is missing");
+  }
+  return {
+    ...(extraHeaders || {}),
+    "X-Room-Access-Token": token
+  };
 }
 
 export async function listRoomPrompts(roomSlug: string): Promise<StylePrompt[]> {
-  try {
-    const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/prompts")}`);
-    if (!response.ok) {
-      return FALLBACK_STYLES;
-    }
-    return (await response.json()) as StylePrompt[];
-  } catch {
-    return FALLBACK_STYLES;
+  const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/prompts")}`, {
+    headers: requireRoomHeaders(roomSlug)
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch room prompts");
   }
+  return (await response.json()) as StylePrompt[];
 }
 
 export async function listPublicRooms(): Promise<PublicRoom[]> {
@@ -74,8 +80,18 @@ export async function listPublicRooms(): Promise<PublicRoom[]> {
   return (await response.json()) as PublicRoom[];
 }
 
-export async function createJob(photo: File, promptId: number): Promise<JobCreated> {
-  return createRoomJob(DEFAULT_ROOM_SLUG, photo, promptId);
+export async function accessRoom(roomSlug: string, password: string): Promise<RoomAccessToken> {
+  const response = await fetch(`${API_BASE}/api/rooms/${encodeURIComponent(roomSlugOrDefault(roomSlug))}/access`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ password })
+  });
+  if (!response.ok) {
+    throw new Error("Неверный пароль комнаты");
+  }
+  return (await response.json()) as RoomAccessToken;
 }
 
 export async function createRoomJob(roomSlug: string, photo: File, promptId: number): Promise<JobCreated> {
@@ -85,6 +101,7 @@ export async function createRoomJob(roomSlug: string, photo: File, promptId: num
 
   const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/jobs")}`, {
     method: "POST",
+    headers: requireRoomHeaders(roomSlug),
     body: formData
   });
 
@@ -110,7 +127,10 @@ export async function getRoomJobStatus(roomSlug: string, jobRef: string): Promis
   }
   const encoded = encodeURIComponent(normalizedRef);
   const byHashResponse = await fetch(
-    `${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/hash/${encoded}`)}`
+    `${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/hash/${encoded}`)}`,
+    {
+      headers: requireRoomHeaders(roomSlug)
+    }
   );
   if (!byHashResponse.ok) {
     throw new Error("Failed to fetch generation status");
@@ -118,12 +138,10 @@ export async function getRoomJobStatus(roomSlug: string, jobRef: string): Promis
   return (await byHashResponse.json()) as JobStatus;
 }
 
-export async function listGalleryResults(): Promise<GalleryImage[]> {
-  return listRoomGalleryResults(DEFAULT_ROOM_SLUG);
-}
-
 export async function listRoomGalleryResults(roomSlug: string): Promise<GalleryImage[]> {
-  const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/jobs/gallery")}`);
+  const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/jobs/gallery")}`, {
+    headers: requireRoomHeaders(roomSlug)
+  });
   if (!response.ok) {
     throw new Error("Failed to fetch gallery images");
   }
@@ -132,83 +150,6 @@ export async function listRoomGalleryResults(roomSlug: string): Promise<GalleryI
 
 export async function listModels(): Promise<string[]> {
   return AVAILABLE_MODELS;
-}
-
-export async function getModel(): Promise<ModelSetting> {
-  try {
-    const response = await fetch(`${API_BASE}/api/settings/model`);
-    if (!response.ok) {
-      return { id: 1, model_name: DEFAULT_MODEL };
-    }
-    return (await response.json()) as ModelSetting;
-  } catch {
-    return { id: 1, model_name: DEFAULT_MODEL };
-  }
-}
-
-export async function setModel(model: string): Promise<ModelSetting> {
-  const response = await fetch(`${API_BASE}/api/settings/model`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ model_name: model })
-  });
-  if (!response.ok) {
-    throw new Error("Failed to update model");
-  }
-  return (await response.json()) as ModelSetting;
-}
-
-export async function uploadPromptPreview(file: File): Promise<MediaUploadResponse> {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetch(`${API_BASE}/api/media/prompt-preview`, {
-    method: "POST",
-    body: formData
-  });
-  if (!response.ok) {
-    throw new Error("Failed to upload preview image");
-  }
-  return (await response.json()) as MediaUploadResponse;
-}
-
-export async function uploadPromptIcon(file: File): Promise<MediaUploadResponse> {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetch(`${API_BASE}/api/media/prompt-icon`, {
-    method: "POST",
-    body: formData
-  });
-  if (!response.ok) {
-    throw new Error("Failed to upload icon image");
-  }
-  return (await response.json()) as MediaUploadResponse;
-}
-
-export async function createPrompt(payload: PromptCreate): Promise<StylePrompt> {
-  const response = await fetch(`${API_BASE}/api/prompts`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    throw new Error("Failed to create style prompt");
-  }
-  return (await response.json()) as StylePrompt;
-}
-
-export async function deletePrompt(promptId: number): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/prompts/${promptId}`, {
-    method: "DELETE"
-  });
-  if (!response.ok) {
-    throw new Error("Failed to delete style prompt");
-  }
 }
 
 export async function adminLogin(username: string, password: string): Promise<AdminToken> {
@@ -279,6 +220,51 @@ export async function deleteRoom(roomId: number): Promise<void> {
   if (!response.ok) {
     throw new Error("Failed to delete room");
   }
+}
+
+export async function getLlmRouting(): Promise<LlmRoutingSettings> {
+  const response = await fetch(`${API_BASE}/api/admin/llm-routing`, {
+    headers: requireAdminHeaders()
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch llm routing settings");
+  }
+  return (await response.json()) as LlmRoutingSettings;
+}
+
+export async function updateLlmRoutingConfig(vlessUri: string): Promise<LlmRoutingSettings> {
+  const response = await fetch(`${API_BASE}/api/admin/llm-routing/config`, {
+    method: "PUT",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ vless_uri: vlessUri })
+  });
+  if (!response.ok) {
+    throw new Error("Failed to update llm routing settings");
+  }
+  return (await response.json()) as LlmRoutingSettings;
+}
+
+export async function testLlmRouting(): Promise<LlmRoutingSettings> {
+  const response = await fetch(`${API_BASE}/api/admin/llm-routing/test`, {
+    method: "POST",
+    headers: requireAdminHeaders()
+  });
+  if (!response.ok) {
+    throw new Error("Failed to test llm routing");
+  }
+  return (await response.json()) as LlmRoutingSettings;
+}
+
+export async function toggleLlmRouting(enabled: boolean): Promise<LlmRoutingSettings> {
+  const response = await fetch(`${API_BASE}/api/admin/llm-routing/toggle`, {
+    method: "POST",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ enabled })
+  });
+  if (!response.ok) {
+    throw new Error("Failed to toggle llm routing");
+  }
+  return (await response.json()) as LlmRoutingSettings;
 }
 
 export async function updateRoomModel(roomId: number, modelName: string): Promise<Room> {

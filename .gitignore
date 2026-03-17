@@ -9,6 +9,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -19,6 +20,7 @@ venv/
 
 # FastAPI storage/runtime
 backend/storage/
+backend/data/
 backend/.pytest_cache/
 backend/.coverage
 backend/*.db

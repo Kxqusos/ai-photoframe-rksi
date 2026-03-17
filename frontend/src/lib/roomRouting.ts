@@ -23,6 +23,15 @@ export function buildRoomApiPath(roomSlug: string, suffix: string): string {
   return `/api/rooms/${encodeURIComponent(slug)}${normalizedSuffix}`;
 }
 
+export function buildPublicRoomPath(roomSlug: string, suffix = ""): string {
+  const slug = normalizeRoomSlug(roomSlug);
+  const normalizedSuffix = suffix ? (suffix.startsWith("/") ? suffix : `/${suffix}`) : "";
+  if (slug === DEFAULT_ROOM_SLUG) {
+    return normalizedSuffix || "/";
+  }
+  return `/${slug}${normalizedSuffix}`;
+}
+
 export type PublicRoute =
   | { page: "capture"; roomSlug: string }
   | { page: "gallery"; roomSlug: string }

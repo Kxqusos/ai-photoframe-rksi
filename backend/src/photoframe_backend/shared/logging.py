@@ -3,24 +3,16 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from photoframe_backend.infrastructure.settings.loader import load_env_file
-from photoframe_backend.infrastructure.settings.models import RuntimeSettings
-from photoframe_backend.shared.constants import (
-    DEFAULT_ENV_FILE,
-    DEFAULT_LOG_BACKUP_COUNT,
-    DEFAULT_LOG_FORMAT,
-    DEFAULT_LOG_MAX_BYTES,
-)
+from photoframe_backend.infrastructure.settings.runtime import load_settings
+from photoframe_backend.shared.constants import DEFAULT_ENV_FILE, DEFAULT_LOG_BACKUP_COUNT, DEFAULT_LOG_FORMAT, DEFAULT_LOG_MAX_BYTES
 
 
 def load_local_env(env_path: Path | None = None) -> None:
     load_env_file(env_path or DEFAULT_ENV_FILE)
 
 
-load_local_env()
-
-
-def _current_settings() -> RuntimeSettings:
-    return RuntimeSettings()
+def _current_settings():
+    return load_settings(allow_test_defaults=True)
 
 
 def _resolve_log_file_path() -> Path:

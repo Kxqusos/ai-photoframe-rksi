@@ -7,6 +7,8 @@ Runtime entrypoint: `uv run uvicorn photoframe_backend.main:app --reload`
 
 ## Public Room API (recommended)
 - `GET /api/rooms` -> active public rooms (`id`, `slug`, `name`) for room selector menu.
+- `POST /api/rooms/{slug}/access` with JSON `{ "password": "..." }` -> `{ "access_token": "...", "token_type": "bearer" }`
+- Room-scoped endpoints below require header `X-Room-Access-Token: <token>`
 - `GET /api/rooms/{slug}/prompts` -> prompt styles for active room.
 - `POST /api/rooms/{slug}/jobs` (multipart: `photo`, `prompt_id`) -> `{ "id": "8-char-token", "status": "processing" }`
 - `GET /api/rooms/{slug}/jobs/hash/{jpg_hash}` -> room-scoped job status.
@@ -52,12 +54,14 @@ All endpoints below require `Authorization: Bearer <token>`.
   - `name`
   - `model_name`
   - `is_active`
+  - `password`
   - `slug` (optional; when omitted, backend auto-generates an 8-char slug `[a-z0-9]`)
 - `PATCH /api/admin/rooms/{room_id}` with any subset of:
   - `slug`
   - `name`
   - `model_name`
   - `is_active`
+  - `password`
 - `DELETE /api/admin/rooms/{room_id}` for empty non-default rooms.
 - `PUT /api/admin/rooms/{room_id}/model` with JSON `{ "model_name": "..." }`.
 - `GET /api/admin/rooms/{room_id}/prompts`

@@ -46,7 +46,13 @@ def test_admin_rooms_crud_and_model_update_requires_jwt(monkeypatch) -> None:
     created = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "aaaaaaaa", "name": "Room A", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={
+            "slug": "aaaaaaaa",
+            "name": "Room A",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "room-a-pass",
+        },
     )
     assert created.status_code == 201
     room_id = created.json()["id"]
@@ -58,7 +64,13 @@ def test_admin_rooms_crud_and_model_update_requires_jwt(monkeypatch) -> None:
     updated = client.patch(
         f"/api/admin/rooms/{room_id}",
         headers=headers,
-        json={"slug": "aaaaaaaa", "name": "Room A Updated", "model_name": "openai/gpt-5-image", "is_active": False},
+        json={
+            "slug": "aaaaaaaa",
+            "name": "Room A Updated",
+            "model_name": "openai/gpt-5-image",
+            "is_active": False,
+            "password": "room-a-pass-updated",
+        },
     )
     assert updated.status_code == 200
     assert updated.json()["name"] == "Room A Updated"
@@ -83,7 +95,13 @@ def test_admin_room_delete_removes_room(monkeypatch) -> None:
     created = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "dddddddd", "name": "Room D", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={
+            "slug": "dddddddd",
+            "name": "Room D",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "room-d-pass",
+        },
     )
     assert created.status_code == 201
     room_id = created.json()["id"]
@@ -106,7 +124,13 @@ def test_admin_room_delete_rejects_default_room(monkeypatch) -> None:
     created = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "ph000000", "name": "Main", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={
+            "slug": "ph000000",
+            "name": "Main",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "main-pass",
+        },
     )
     assert created.status_code == 201
     room_id = created.json()["id"]
@@ -126,7 +150,13 @@ def test_admin_room_delete_rejects_room_with_prompts(monkeypatch) -> None:
     created = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "eeeeeeee", "name": "Room E", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={
+            "slug": "eeeeeeee",
+            "name": "Room E",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "room-e-pass",
+        },
     )
     assert created.status_code == 201
     room_id = created.json()["id"]
@@ -159,12 +189,24 @@ def test_admin_room_prompt_endpoints_are_scoped(monkeypatch) -> None:
     room_a = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "aaaaaaaa", "name": "Room A", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={
+            "slug": "aaaaaaaa",
+            "name": "Room A",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "room-a-pass",
+        },
     )
     room_b = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "bbbbbbbb", "name": "Room B", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={
+            "slug": "bbbbbbbb",
+            "name": "Room B",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "room-b-pass",
+        },
     )
     assert room_a.status_code == 201
     assert room_b.status_code == 201
@@ -214,7 +256,13 @@ def test_admin_room_media_uploads_are_room_scoped(monkeypatch, tmp_path: Path) -
     room = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "cccccccc", "name": "Room Media", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={
+            "slug": "cccccccc",
+            "name": "Room Media",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "room-media-pass",
+        },
     )
     assert room.status_code == 201
     room_id = room.json()["id"]
@@ -246,7 +294,13 @@ def test_admin_room_rejects_invalid_slug_format(monkeypatch) -> None:
     invalid = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"slug": "room-a", "name": "Room A", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={
+            "slug": "room-a",
+            "name": "Room A",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "room-a-pass",
+        },
     )
     assert invalid.status_code == 422
 
@@ -261,11 +315,27 @@ def test_admin_room_auto_generates_slug_when_missing(monkeypatch) -> None:
     created = client.post(
         "/api/admin/rooms",
         headers=headers,
-        json={"name": "Room Auto", "model_name": "openai/gpt-5-image", "is_active": True},
+        json={"name": "Room Auto", "model_name": "openai/gpt-5-image", "is_active": True, "password": "room-auto-pass"},
     )
     assert created.status_code == 201
     body = created.json()
     assert re.fullmatch(r"[a-z0-9]{8}", body["slug"])
+
+
+def test_admin_room_creation_requires_password(monkeypatch) -> None:
+    _reset_db()
+    username, password = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+    token = _get_admin_token(client, username, password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/api/admin/rooms",
+        headers=headers,
+        json={"slug": "ffffffff", "name": "Room F", "model_name": "openai/gpt-5-image", "is_active": True},
+    )
+
+    assert created.status_code == 422
 
 
 def test_admin_router_is_sourced_from_src_api_layer() -> None:

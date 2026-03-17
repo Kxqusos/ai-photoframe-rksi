@@ -24,6 +24,7 @@ export type RoomCreatePayload = {
   name: string;
   model_name: string;
   is_active: boolean;
+  password: string;
 };
 
 export type RoomPatchPayload = {
@@ -31,6 +32,7 @@ export type RoomPatchPayload = {
   name?: string;
   model_name?: string;
   is_active?: boolean;
+  password?: string;
 };
 
 export type PublicRoom = {
@@ -40,6 +42,11 @@ export type PublicRoom = {
 };
 
 export type AdminToken = {
+  access_token: string;
+  token_type: string;
+};
+
+export type RoomAccessToken = {
   access_token: string;
   token_type: string;
 };
@@ -74,4 +81,13 @@ export type GalleryImage = {
   name: string;
   url: string;
   modified_at: number;
+};
+
+export type LlmRoutingSettings = {
+  enabled: boolean;
+  status: string;
+  vless_uri: string;
+  last_error: string | null;
+  last_checked_at: string | null;
+  last_applied_at: string | null;
 };

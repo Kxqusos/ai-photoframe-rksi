@@ -22,7 +22,12 @@ def on_startup() -> None:
     app.title = settings.app_name
     configure_logging()
     sync_legacy_storage()
-    bootstrap_default_room(engine=engine, database_url=DATABASE_URL, default_room_slug=DEFAULT_PUBLIC_ID)
+    bootstrap_default_room(
+        engine=engine,
+        database_url=DATABASE_URL,
+        default_room_slug=DEFAULT_PUBLIC_ID,
+        fallback_room_password=settings.auth.admin_password,
+    )
 
 
 @app.get("/api/health")

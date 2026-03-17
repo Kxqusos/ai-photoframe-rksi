@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,9 @@ def clear_settings_env(monkeypatch) -> None:
         "APP__NAME",
         "APP__ENV",
         "APP__DEFAULT_PUBLIC_ROOM_SLUG",
+        "LLM__PROVIDER",
+        "OPENAI_COMPATIBLE__BASE_URL",
+        "OPENAI_COMPATIBLE__API_KEY",
         "AUTH__JWT_SECRET",
         "AUTH__JWT_EXPIRE_MINUTES",
         "AUTH__ADMIN_USERNAME",
@@ -42,6 +46,9 @@ def clear_settings_env(monkeypatch) -> None:
         "ADMIN_PASSWORD",
         "LOG_FILE_PATH",
         "LOG_LEVEL",
+        "LLM_PROVIDER",
+        "OPENAI_COMPATIBLE_BASE_URL",
+        "OPENAI_COMPATIBLE_API_KEY",
         "OPENROUTER_API_KEY",
         "OPENROUTER_HTTP_REFERER",
         "OPENROUTER_X_TITLE",
@@ -191,3 +198,52 @@ def test_legacy_process_env_overrides_grouped_file_values(tmp_path: Path, monkey
     assert settings.auth.jwt_secret == "legacy-secret"
     assert settings.auth.admin_password == "legacy-admin"
     assert settings.log.level == "DEBUG"
+
+
+def test_load_settings_reads_openai_compatible_provider_from_env_file(tmp_path: Path, monkeypatch) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "APP__ENV=development",
+                "AUTH__JWT_SECRET=super-secret",
+                "AUTH__ADMIN_PASSWORD=super-admin",
+                "LLM__PROVIDER=openai_compatible",
+                "OPENAI_COMPATIBLE__BASE_URL=https://embedded.pups-labs.ru/",
+                "OPENAI_COMPATIBLE__API_KEY=compatible-file-key",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    for key in [
+        "APP__ENV",
+        "AUTH__JWT_SECRET",
+        "AUTH__ADMIN_PASSWORD",
+        "LLM__PROVIDER",
+        "OPENAI_COMPATIBLE__BASE_URL",
+        "OPENAI_COMPATIBLE__API_KEY",
+        "LLM_PROVIDER",
+        "OPENAI_COMPATIBLE_BASE_URL",
+        "OPENAI_COMPATIBLE_API_KEY",
+    ]:
+        monkeypatch.delenv(key, raising=False)
+
+    settings = load_settings(env_path=env_path, allow_test_defaults=False)
+
+    assert settings.llm.provider == "openai_compatible"
+    assert settings.openai_compatible.base_url == "https://embedded.pups-labs.ru/"
+    assert settings.openai_compatible.api_key == "compatible-file-key"
+    assert os.getenv("LLM_PROVIDER") == "openai_compatible"
+    assert os.getenv("OPENAI_COMPATIBLE_BASE_URL") == "https://embedded.pups-labs.ru/"
+    assert os.getenv("OPENAI_COMPATIBLE_API_KEY") == "compatible-file-key"
+
+
+def test_load_settings_defaults_llm_provider_to_openrouter(monkeypatch) -> None:
+    monkeypatch.setenv("AUTH__JWT_SECRET", "super-secret")
+    monkeypatch.setenv("AUTH__ADMIN_PASSWORD", "super-admin")
+
+    settings = load_settings(allow_test_defaults=False)
+
+    assert settings.llm.provider == "openrouter"

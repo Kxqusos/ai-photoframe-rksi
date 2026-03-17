@@ -1,10 +1,11 @@
 import logging
+import time
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
 
-from photoframe_backend.api.http.dependencies import DbSession, PublicIdPath
+from photoframe_backend.api.http.dependencies import DbSession, PublicIdPath, require_room_access
 from photoframe_backend.api.http.schemas.public import GalleryImageOut, JobCreated, JobStatusOut
 from photoframe_backend.application.services.job_runtime import (
     create_processing_job,
@@ -22,9 +23,16 @@ from photoframe_backend.infrastructure.db.session import SessionLocal
 from photoframe_backend.shared.qr import build_qr_png
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
-room_router = APIRouter(prefix="/api/rooms/{room_slug}/jobs", tags=["jobs"])
+room_router = APIRouter(prefix="/api/rooms/{room_slug}/jobs", tags=["jobs"], dependencies=[Depends(require_room_access)])
 public_router = APIRouter(prefix="/qr", tags=["qr"])
 logger = logging.getLogger(__name__)
+_GENERATION_RETRY_DELAY_SECONDS = 3.0
+_NON_RETRYABLE_GENERATION_ERRORS = {
+    "prompt not found",
+    "room not found",
+    "generate_image dependency is not configured",
+    "storage dependencies are not configured",
+}
 
 
 def _build_qr_target_url(request: Request, qr_hash: str) -> str:
@@ -32,11 +40,21 @@ def _build_qr_target_url(request: Request, qr_hash: str) -> str:
 
 
 def _run_generation_in_background(job_id: int) -> None:
-    try:
-        with SessionLocal() as db:
-            run_generation_sync(db, job_id)
-    except Exception:
-        logger.exception("Background generation crashed for job %s", job_id)
+    while True:
+        try:
+            with SessionLocal() as db:
+                job = run_generation_sync(db, job_id)
+                if job.status == "completed":
+                    return
+                if (job.error_message or "").strip().lower() in _NON_RETRYABLE_GENERATION_ERRORS:
+                    return
+                job.status = "processing"
+                db.add(job)
+                db.commit()
+        except Exception:
+            logger.exception("Background generation crashed for job %s", job_id)
+
+        time.sleep(_GENERATION_RETRY_DELAY_SECONDS)
 
 
 def _to_job_status(job: object, *, room_slug: str | None = None) -> JobStatusOut:
@@ -46,8 +64,6 @@ def _to_job_status(job: object, *, room_slug: str | None = None) -> JobStatusOut
     if job.status == "completed":
         download_url = f"/qr/{job.qr_hash}"
         qr_url = f"/api/jobs/hash/{job.qr_hash}/qr"
-        if room_slug:
-            qr_url = f"/api/rooms/{room_slug}/jobs/hash/{job.qr_hash}/qr"
         return JobStatusOut(
             id=job.qr_hash,
             status=job.status,
@@ -193,9 +209,8 @@ def download_qr(job_id: int, request: Request, db: DbSession) -> Response:
 
 @router.get("/hash/{jpg_hash}/qr")
 def download_qr_by_hash(jpg_hash: PublicIdPath, request: Request, db: DbSession) -> Response:
-    default_room = get_or_create_default_room(db)
     job = get_completed_job_by_qr_hash(db, jpg_hash)
-    if job is None or job.room_id != default_room.id:
+    if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not completed")
 
     target_url = _build_qr_target_url(request, job.qr_hash)

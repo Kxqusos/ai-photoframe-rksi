@@ -190,6 +190,44 @@ def test_create_job_uses_saved_model_setting(monkeypatch) -> None:
     assert captured["model"] == "openai/gpt-5-image"
 
 
+def test_create_job_retries_generation_until_success(monkeypatch) -> None:
+    _reset_db()
+    attempts = {"count": 0}
+
+    def flaky_generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
+        attempts["count"] += 1
+        if attempts["count"] < 3:
+            raise RuntimeError("OpenRouter request failed (500): Connection error.")
+        return b"generated-image-bytes"
+
+    monkeypatch.setattr("photoframe_backend.api.http.routers.jobs._GENERATION_RETRY_DELAY_SECONDS", 0)
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.openrouter_client.generate_image", flaky_generate_image)
+
+    client = TestClient(app)
+    prompt_id = _create_prompt(client)
+
+    created = client.post(
+        "/api/jobs",
+        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        data={"prompt_id": str(prompt_id)},
+    )
+    assert created.status_code == 202
+    job_hash = created.json()["id"]
+
+    status_body: dict[str, str] | None = None
+    for _ in range(80):
+        status = client.get(f"/api/jobs/hash/{job_hash}")
+        assert status.status_code == 200
+        status_body = status.json()
+        if status_body["status"] == "completed":
+            break
+        time.sleep(0.02)
+
+    assert attempts["count"] == 3
+    assert status_body is not None
+    assert status_body["status"] == "completed"
+
+
 def test_create_job_uses_default_room_model_when_it_differs_from_legacy_setting(monkeypatch) -> None:
     _reset_db()
     captured: dict[str, str] = {}

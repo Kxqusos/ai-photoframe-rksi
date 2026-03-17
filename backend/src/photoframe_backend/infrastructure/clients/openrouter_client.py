@@ -309,7 +309,7 @@ def _transform_output_image(image_bytes: bytes) -> bytes:
     return image_bytes
 
 
-def generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
+def generate_image(*, model: str, prompt: str, image_bytes: bytes, base_url: str | None = None) -> bytes:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not configured")
@@ -326,7 +326,7 @@ def generate_image(*, model: str, prompt: str, image_bytes: bytes) -> bytes:
 
     client = openai_client_class(
         api_key=api_key,
-        base_url=OPENROUTER_BASE_URL,
+        base_url=base_url or OPENROUTER_BASE_URL,
         default_headers=headers,
         timeout=120.0,
     )

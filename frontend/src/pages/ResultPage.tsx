@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import { getRoomJobStatus } from "../lib/api";
-import { normalizeResultHash, normalizeRoomSlug } from "../lib/roomRouting";
+import { buildPublicRoomPath, normalizeResultHash, normalizeRoomSlug } from "../lib/roomRouting";
 import type { JobStatus } from "../types";
 
 type Props = {
   roomSlug: string;
   jpgHash?: string;
-  onRoomMenuLockChange?: (locked: boolean) => void;
 };
 
 function resolveJpgHash(provided?: string): string | null {
@@ -26,7 +25,7 @@ function isTerminalJobStatus(status: JobStatus | null): boolean {
   return status?.status === "completed" || status?.status === "error";
 }
 
-export function ResultPage({ roomSlug, jpgHash: providedJpgHash, onRoomMenuLockChange }: Props) {
+export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {
   const resolvedRoomSlug = useMemo(() => normalizeRoomSlug(roomSlug), [roomSlug]);
   const jpgHash = useMemo(() => resolveJpgHash(providedJpgHash), [providedJpgHash]);
   const [job, setJob] = useState<JobStatus | null>(null);
@@ -38,22 +37,12 @@ export function ResultPage({ roomSlug, jpgHash: providedJpgHash, onRoomMenuLockC
       window.history.back();
       return;
     }
-    window.location.assign(`/${resolvedRoomSlug}`);
+    window.location.assign(buildPublicRoomPath(resolvedRoomSlug));
   }
 
   useEffect(() => {
     setMediaFailed(false);
   }, [jpgHash, job?.result_url, job?.status]);
-
-  useEffect(() => {
-    if (!onRoomMenuLockChange) {
-      return;
-    }
-
-    const locked = !error && !isTerminalJobStatus(job);
-    onRoomMenuLockChange(locked);
-    return () => onRoomMenuLockChange(false);
-  }, [error, job, onRoomMenuLockChange]);
 
   useEffect(() => {
     if (jpgHash === null) {
@@ -135,27 +124,24 @@ export function ResultPage({ roomSlug, jpgHash: providedJpgHash, onRoomMenuLockC
       <main className="page result-page result-page--completed">
         <div className="result-shell">
           <section className="panel result-hero">
-            <p className="result-eyebrow">ИИ Фоторамка</p>
-            <h1>Результат готов</h1>
-            <p className="result-subtitle">Ваш кадр готов. Следующий шаг: откройте ссылку для скачивания или заберите фото через QR-код.</p>
             <div className="result-media">
               <img className="result-photo" src={job.result_url} alt="generated photo" onError={() => setMediaFailed(true)} />
             </div>
           </section>
 
           <section className="panel result-download-panel">
+            <p className="result-download-eyebrow">Готово к скачиванию</p>
+            <h2>Заберите фото на телефон</h2>
+            <p className="result-download-hint">Отсканируйте QR-код камерой телефона.</p>
+            <p className="result-download-hint">После сканирования откроется страница с готовым кадром для сохранения.</p>
+            <div className="result-download-qr-slot">
+              <a href={job.download_url} className="result-qr-link" aria-label="Скачать фото через QR-код">
+                <img className="result-qr" src={job.qr_url} alt="download qr" width={220} />
+              </a>
+            </div>
             <button type="button" className="button-secondary result-back-button" onClick={onBack}>
               Назад
             </button>
-            <p className="result-download-eyebrow">Следующий шаг</p>
-            <h2>Скачайте фото</h2>
-            <a href={job.download_url} className="result-download-link">
-              Открыть ссылку для скачивания
-            </a>
-            <p className="result-download-hint">Или отсканируйте QR-код камерой телефона.</p>
-            <a href={job.download_url} className="result-qr-link" aria-label="Скачать фото через QR-код">
-              <img className="result-qr" src={job.qr_url} alt="download qr" width={220} />
-            </a>
           </section>
         </div>
       </main>
@@ -183,11 +169,13 @@ export function ResultPage({ roomSlug, jpgHash: providedJpgHash, onRoomMenuLockC
   return (
     <main className="page result-page result-page--loading">
       <section className="panel result-loading-card">
-        <p className="result-eyebrow">ИИ Фоторамка</p>
-        <h1>Собираем ваш финальный кадр</h1>
-        <p className="result-loading-text">Обычно это занимает меньше минуты.</p>
-        <p className="result-loading-support">Не закрывайте страницу: как только изображение будет готово, здесь появится результат и ссылка для скачивания.</p>
-        <div className="result-loading-preview" data-testid="result-loading-preview" aria-hidden="true" />
+        <div className="result-loading-header">
+          <p className="result-eyebrow">ИИ Фоторамка</p>
+          <h1 className="result-loading-title">Собираем ваш финальный кадр</h1>
+        </div>
+        <div className="result-loading-copy">
+          <p className="result-loading-text">Обычно это занимает меньше минуты.</p>
+        </div>
         <div className="result-loading-bar" aria-hidden="true">
           <span className="result-loading-bar__progress result-loading-bar__progress--indeterminate" />
         </div>

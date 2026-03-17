@@ -9,7 +9,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from photoframe_backend.infrastructure.clients import openrouter_client
+from photoframe_backend.application.services import llm_routing
+from photoframe_backend.infrastructure.clients import image_generation
 from photoframe_backend.infrastructure.db.models import GenerationJob, ModelSetting, Prompt, Room
 from photoframe_backend.application.services.job_service import JobService
 from photoframe_backend.application.services.prompt_service import PromptService
@@ -176,7 +177,12 @@ def create_processing_job(db: Session, *, prompt_id: int, room_id: int, source_b
         prompt_service=PromptService(SqlAlchemyPromptRepository(db)),
         job_repository=SqlAlchemyJobRepository(db, source_dir=SOURCE_DIR),
         generate_qr_hash=lambda: _generate_unique_qr_hash(db),
-        generate_image=openrouter_client.generate_image,
+        generate_image=lambda *, model, prompt, image_bytes: image_generation.generate_image(
+            model=model,
+            prompt=prompt,
+            image_bytes=image_bytes,
+            route_via_proxy=llm_routing.is_llm_routing_active(db),
+        ),
         build_room_result_dir=_build_room_result_dir,
         build_filename=_build_filename,
         resolve_result_suffix=_resolve_result_suffix,
@@ -215,10 +221,11 @@ def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
         prompt_service=PromptService(SqlAlchemyPromptRepository(db)),
         job_repository=SqlAlchemyJobRepository(db, source_dir=SOURCE_DIR),
         generate_qr_hash=_generate_qr_hash,
-        generate_image=lambda *, model, prompt, image_bytes: openrouter_client.generate_image(
+        generate_image=lambda *, model, prompt, image_bytes: image_generation.generate_image(
             model=_normalize_model_name(model),
             prompt=prompt,
             image_bytes=image_bytes,
+            route_via_proxy=llm_routing.is_llm_routing_active(db),
         ),
         build_room_result_dir=_build_room_result_dir,
         build_filename=_build_filename,

@@ -11,7 +11,7 @@ from photoframe_backend.infrastructure.settings.runtime import load_settings
 
 TABLE_COPY_ORDER = ("rooms", "model_settings", "prompts", "generation_jobs")
 TABLE_COLUMNS = {
-    "rooms": ("id", "slug", "name", "model_name", "is_active"),
+    "rooms": ("id", "slug", "name", "model_name", "is_active", "room_password_hash"),
     "model_settings": ("id", "model_name"),
     "prompts": ("id", "name", "description", "prompt", "preview_image_url", "icon_image_url", "room_id"),
     "generation_jobs": ("id", "prompt_id", "room_id", "status", "qr_hash", "source_path", "result_path", "error_message"),
@@ -25,9 +25,15 @@ def _cli_target_database_url() -> str:
 
 
 def _read_source_rows(connection: sa.Connection, table_name: str) -> list[dict[str, object]]:
-    columns = TABLE_COLUMNS[table_name]
+    available_columns = {column["name"] for column in sa.inspect(connection).get_columns(table_name)}
+    columns = tuple(column for column in TABLE_COLUMNS[table_name] if column in available_columns)
     result = connection.execute(sa.text(f"SELECT {', '.join(columns)} FROM {table_name} ORDER BY id"))
-    return [dict(row._mapping) for row in result]
+
+    rows = [dict(row._mapping) for row in result]
+    if table_name == "rooms":
+        for row in rows:
+            row.setdefault("room_password_hash", "")
+    return rows
 
 
 def _build_target_engine(target_database_url: str) -> sa.Engine:

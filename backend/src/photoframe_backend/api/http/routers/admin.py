@@ -4,8 +4,11 @@ from sqlalchemy.orm import Session
 
 from photoframe_backend.api.http.dependencies import DbSession, require_admin
 from photoframe_backend.api.http.routers.media import save_prompt_icon, save_prompt_preview
-from photoframe_backend.api.http.security import settings
+from photoframe_backend.api.http.security import hash_room_password, settings
 from photoframe_backend.api.http.schemas.admin import (
+    LlmRoutingConfigUpdate,
+    LlmRoutingOut,
+    LlmRoutingToggle,
     PromptCreate,
     PromptOut,
     RoomCreate,
@@ -14,6 +17,7 @@ from photoframe_backend.api.http.schemas.admin import (
     RoomOut,
     RoomUpdate,
 )
+from photoframe_backend.application.services import llm_routing
 from photoframe_backend.infrastructure.db.models import GenerationJob, Prompt, Room
 from photoframe_backend.shared.public_ids import generate_public_id
 
@@ -47,7 +51,11 @@ def create_room(payload: RoomCreate, db: DbSession) -> Room:
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="room slug already exists")
 
-    room = Room(**payload.model_dump(exclude={"slug"}), slug=slug)
+    room = Room(
+        **payload.model_dump(exclude={"slug", "password"}),
+        slug=slug,
+        room_password_hash=hash_room_password(payload.password),
+    )
     db.add(room)
     db.commit()
     db.refresh(room)
@@ -66,6 +74,8 @@ def update_room(room_id: int, payload: RoomUpdate, db: DbSession) -> Room:
     room.name = payload.name
     room.model_name = payload.model_name
     room.is_active = payload.is_active
+    if payload.password:
+        room.room_password_hash = hash_room_password(payload.password)
     db.add(room)
     db.commit()
     db.refresh(room)
@@ -87,6 +97,8 @@ def patch_room(room_id: int, payload: RoomPatch, db: DbSession) -> Room:
         room.model_name = payload.model_name
     if payload.is_active is not None:
         room.is_active = payload.is_active
+    if payload.password:
+        room.room_password_hash = hash_room_password(payload.password)
 
     db.add(room)
     db.commit()
@@ -161,6 +173,30 @@ async def upload_room_prompt_preview(room_id: int, file: UploadFile, db: DbSessi
 async def upload_room_prompt_icon(room_id: int, file: UploadFile, db: DbSession) -> dict[str, str]:
     _get_room_or_404(db, room_id)
     return {"url": await save_prompt_icon(file, room_id=room_id)}
+
+
+@router.get("/llm-routing", response_model=LlmRoutingOut)
+def get_llm_routing(db: DbSession) -> LlmRoutingOut:
+    setting = llm_routing.get_or_create_llm_routing_setting(db)
+    return LlmRoutingOut.from_model(setting)
+
+
+@router.put("/llm-routing/config", response_model=LlmRoutingOut)
+def update_llm_routing_config(payload: LlmRoutingConfigUpdate, db: DbSession) -> LlmRoutingOut:
+    setting = llm_routing.save_vless_uri(db, payload.vless_uri)
+    return LlmRoutingOut.from_model(setting)
+
+
+@router.post("/llm-routing/test", response_model=LlmRoutingOut)
+def test_llm_routing(db: DbSession) -> LlmRoutingOut:
+    setting = llm_routing.test_routing(db)
+    return LlmRoutingOut.from_model(setting)
+
+
+@router.post("/llm-routing/toggle", response_model=LlmRoutingOut)
+def toggle_llm_routing(payload: LlmRoutingToggle, db: DbSession) -> LlmRoutingOut:
+    setting = llm_routing.set_routing_enabled(db, payload.enabled)
+    return LlmRoutingOut.from_model(setting)
 
 
 __all__ = ["router"]

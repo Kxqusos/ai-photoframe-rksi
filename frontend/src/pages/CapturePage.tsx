@@ -1,9 +1,8 @@
 import React from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { PublicRoomMenu } from "../components/PublicRoomMenu";
 import { createRoomJob, listRoomPrompts } from "../lib/api";
-import { normalizeRoomSlug } from "../lib/roomRouting";
+import { buildPublicRoomPath, normalizeRoomSlug } from "../lib/roomRouting";
 import { readStoredStyleId, writeStoredStyleId } from "../lib/styleSelection";
 import type { StylePrompt } from "../types";
 
@@ -134,7 +133,7 @@ export function CapturePage({ roomSlug }: Props) {
     setGenerationError("");
     try {
       const job = await createRoomJob(resolvedRoomSlug, capturedPhoto, selectedId);
-      window.location.assign(`/${resolvedRoomSlug}/result/${job.id}`);
+      window.location.assign(buildPublicRoomPath(resolvedRoomSlug, `/result/${job.id}`));
     } catch {
       setIsGenerating(false);
       setGenerationError("Не удалось отправить фото. Попробуйте ещё раз.");
@@ -254,9 +253,6 @@ export function CapturePage({ roomSlug }: Props) {
           <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
             {screenReaderStatusMessage}
           </div>
-          <div className="capture-screen__room-menu-slot">
-            <PublicRoomMenu currentRoomSlug={resolvedRoomSlug} variant="embedded" />
-          </div>
           <p className="capture-screen__eyebrow">{captureStatusLabel}</p>
           <h2 className="capture-screen__selection-name">{selectedStyle?.name || "Стиль не выбран"}</h2>
           <p className="capture-screen__selection-description">{captureStatusDescription}</p>
@@ -266,9 +262,6 @@ export function CapturePage({ roomSlug }: Props) {
           {generationError ? <p role="alert" className="capture-screen__state capture-screen__state--error">{generationError}</p> : null}
 
           <div className="capture-screen__controls">
-            <div className="capture-screen__cta-meta">
-              <span>{selectedStyle ? "Стиль выбран" : "Стиль не выбран"}</span>
-            </div>
             <button
               type="button"
               className="capture-screen__button"
