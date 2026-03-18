@@ -4,7 +4,7 @@ The project now uses a single standalone root `docker-compose.yml`.
 
 Supporting assets remain split by role:
 - `deploy/docker/`: image definitions
-- `deploy/env/`: example env files for backend and postgres
+- `deploy/env/`: example env files for postgres and other deploy-side services
 - `deploy/scripts/`: container startup helpers
 
 ## Validation
@@ -16,17 +16,19 @@ docker compose config
 ## Env Files
 Do not run production directly from the tracked `*.example` files. Create real env files first:
 ```bash
-cp deploy/env/backend.env.example deploy/env/backend.env
+cp backend/.env.example backend/.env
 cp deploy/env/postgres.env.example deploy/env/postgres.env
 ```
 
 Then edit at least:
+- `APP__ENV` (`docker` for compose-based deploys)
 - `AUTH__JWT_SECRET`
 - `AUTH__ADMIN_PASSWORD`
 - `POSTGRES_PASSWORD`
 - `OPENROUTER__API_KEY`
 
 Recommended minimums before first deploy:
+- Set `APP__ENV=docker` in `backend/.env`.
 - Set `AUTH__JWT_SECRET` to a random secret with at least 32 bytes.
 - Set `AUTH__ADMIN_PASSWORD` and `POSTGRES_PASSWORD` to non-default values.
 - If you use direct `openai_compatible`, also fill `OPENAI_COMPATIBLE__BASE_URL` and `OPENAI_COMPATIBLE__API_KEY`.
