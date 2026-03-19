@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { listRoomGalleryResults } from "../lib/api";
 import { normalizeRoomSlug } from "../lib/roomRouting";
@@ -211,7 +211,6 @@ export function GalleryPage({ roomSlug }: Props) {
       <header className="panel gallery-header">
         <p className="gallery-eyebrow">Подборка комнаты</p>
         <h1>Лента лучших кадров</h1>
-        <p className="gallery-description">Новые снимки появляются автоматически, поэтому галерея всегда обновляется без перезагрузки.</p>
       </header>
 
       <section className="gallery-scroll">

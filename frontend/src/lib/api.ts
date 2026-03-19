@@ -18,16 +18,6 @@ import { getRoomAccessToken } from "./roomAccess";
 import { DEFAULT_ROOM_SLUG, buildRoomApiPath, normalizeResultHash, normalizeRoomSlug } from "./roomRouting";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-const FALLBACK_STYLES: StylePrompt[] = [
-  {
-    id: 1,
-    name: "Anime",
-    description: "Soft anime shading",
-    prompt: "Turn input photo into anime portrait",
-    preview_image_url: "/media/previews/anime.jpg",
-    icon_image_url: "/media/icons/anime.png"
-  }
-];
 const AVAILABLE_MODELS = [
   "openai/gpt-5-image",
   "google/gemini-2.5-flash-image",

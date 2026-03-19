@@ -10,8 +10,8 @@ class RoomService:
         room_repository: RoomRepository,
         *,
         default_room_slug: str = "ph000000",
-        default_room_name: str = "Main",
-        default_model_name: str = "openai/gpt-5-image",
+        default_room_name: str = "Главная",
+        default_model_name: str = "google/gemini-2.5-flash-image",
     ) -> None:
         self._room_repository = room_repository
         self._default_room_slug = default_room_slug

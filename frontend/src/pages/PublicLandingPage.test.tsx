@@ -72,7 +72,32 @@ test("allows opening selected room gallery from the landing page", async () => {
   });
 });
 
-test("keeps default room on root instead of redirecting to /ph000000", async () => {
+test("separates room selection from the access controls instead of nesting both inside one inner box", async () => {
+  listPublicRoomsMock.mockResolvedValue([
+    { id: 1, slug: "ph000000", name: "Main" },
+    { id: 2, slug: "aaaaaaaa", name: "Room A" }
+  ]);
+
+  const { container } = render(<PublicLandingPage />);
+
+  expect(await screen.findByRole("button", { name: /room a/i })).toBeInTheDocument();
+  expect(container.querySelector(".public-landing-page__content")).not.toBeNull();
+  expect(screen.getByLabelText(/список комнат/i)).toHaveClass("public-landing-page__rooms");
+  expect(screen.getByLabelText(/настройки входа/i)).toHaveClass("public-landing-page__form");
+});
+
+test("integrates the admin login action into the landing panel instead of leaving it in a detached top strip", async () => {
+  listPublicRoomsMock.mockResolvedValue([{ id: 1, slug: "ph000000", name: "Main" }]);
+
+  const { container } = render(<PublicLandingPage />);
+
+  expect(await screen.findByRole("button", { name: /главная/i })).toBeInTheDocument();
+  const panelHead = container.querySelector(".public-landing-page__panel-head");
+  expect(panelHead).not.toBeNull();
+  expect(panelHead).toContainElement(screen.getByRole("link", { name: /вход/i }));
+});
+
+test("navigates to the explicit default-room slug instead of keeping root", async () => {
   listPublicRoomsMock.mockResolvedValue([{ id: 1, slug: "ph000000", name: "Main" }]);
   accessRoomMock.mockResolvedValue({ access_token: "room-token", token_type: "bearer" });
 
@@ -83,6 +108,6 @@ test("keeps default room on root instead of redirecting to /ph000000", async () 
   fireEvent.click(screen.getByRole("button", { name: /открыть комнату/i }));
 
   await waitFor(() => {
-    expect(navigateToMock).toHaveBeenCalledWith("/");
+    expect(navigateToMock).toHaveBeenCalledWith("/ph000000");
   });
 });

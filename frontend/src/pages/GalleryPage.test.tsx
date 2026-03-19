@@ -60,7 +60,6 @@ test("renders curated gallery framing for populated state", async () => {
   });
 
   expect(screen.getByRole("heading", { name: /лента лучших кадров/i })).toBeInTheDocument();
-  expect(screen.getByText(/новые снимки появляются автоматически/i)).toBeInTheDocument();
   expect(screen.getByText(/подборка комнаты/i)).toBeInTheDocument();
   expect(screen.getByLabelText("gallery auto scroll")).toBeInTheDocument();
 });

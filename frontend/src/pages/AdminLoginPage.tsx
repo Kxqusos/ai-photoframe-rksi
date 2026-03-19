@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 import { adminLogin } from "../lib/api";
 import { saveAdminToken } from "../lib/auth";

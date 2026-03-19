@@ -89,7 +89,8 @@ test("updates model and manages prompts for selected room", async () => {
 
   await screen.findByText(/room a/i);
   expect(screen.getByRole("heading", { name: /сводка комнаты/i })).toBeInTheDocument();
-  expect(screen.getByText(/идентификатор/i)).toBeInTheDocument();
+  expect(screen.queryByText(/идентификатор/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/^aaaaaaaa$/i)).not.toBeInTheDocument();
   expect(screen.getByText(/активна/i)).toBeInTheDocument();
   expect(screen.getByText(/^m$/i)).toBeInTheDocument();
   expect(screen.getByText(/^0$/i)).toBeInTheDocument();
@@ -119,7 +120,7 @@ test("updates model and manages prompts for selected room", async () => {
     );
   });
 
-  fireEvent.click(await screen.findByRole("button", { name: /редактировать prompt a/i }));
+  fireEvent.click(await screen.findByRole("button", { name: /^редактировать$/i }));
   expect(screen.getByLabelText(/название промпта/i)).toHaveValue("Prompt A");
   expect(screen.getByLabelText(/описание промпта/i)).toHaveValue("desc");
   expect(screen.getByLabelText(/текст промпта/i)).toHaveValue("body");
@@ -143,8 +144,8 @@ test("updates model and manages prompts for selected room", async () => {
   });
 
   expect(await screen.findByRole("heading", { name: /prompt edited/i })).toBeInTheDocument();
-  expect(screen.getByText(/превью: \/p.jpg/i)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /удалить prompt edited навсегда/i }));
+  expect(screen.queryByText(/превью:\s*\/p\.jpg/i)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /^удалить$/i }));
   await waitFor(() => {
     expect(deleteRoomAdminPromptMock).toHaveBeenCalledWith(7, 5);
     expect(screen.queryByRole("heading", { name: /prompt edited/i })).not.toBeInTheDocument();
@@ -176,7 +177,7 @@ test("keeps existing icon when editing prompt with a new preview file", async ()
 
   render(<AdminRoomEditorPage roomSlug="aaaaaaaa" />);
 
-  fireEvent.click(await screen.findByRole("button", { name: /редактировать prompt a/i }));
+  fireEvent.click(await screen.findByRole("button", { name: /^редактировать$/i }));
   const previewFile = new File(["y"], "replacement.png", { type: "image/png" });
   fireEvent.change(screen.getByLabelText(/превью/i), { target: { files: [previewFile] } });
   fireEvent.click(screen.getByRole("button", { name: /сохранить изменения/i }));
@@ -238,7 +239,7 @@ test("shows inline save state and richer prompt actions", async () => {
     expect(screen.getByRole("button", { name: /сохранить модель/i })).toBeEnabled();
   });
 
-  fireEvent.click(screen.getByRole("button", { name: /редактировать prompt a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^редактировать$/i }));
   expect(screen.getByRole("heading", { name: /редактирование промпта/i })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /сохранить изменения/i })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /отменить редактирование/i })).toBeInTheDocument();
@@ -248,8 +249,8 @@ test("shows inline save state and richer prompt actions", async () => {
   expect(screen.queryByRole("button", { name: /отменить редактирование/i })).not.toBeInTheDocument();
   expect(screen.getByLabelText(/название промпта/i)).toHaveValue("");
 
-  fireEvent.click(screen.getByRole("button", { name: /удалить prompt a навсегда/i }));
-  expect(screen.getByRole("button", { name: /удаляем prompt a/i })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: /^удалить$/i }));
+  expect(screen.getByRole("button", { name: /^удаляем\.\.\.$/i })).toBeDisabled();
 
   deleteDeferred.resolve(undefined);
   await waitFor(() => {
@@ -276,10 +277,10 @@ test("resets edit mode after deleting the prompt currently being edited", async 
 
   render(<AdminRoomEditorPage roomSlug="aaaaaaaa" />);
 
-  fireEvent.click(await screen.findByRole("button", { name: /редактировать prompt a/i }));
+  fireEvent.click(await screen.findByRole("button", { name: /^редактировать$/i }));
   expect(screen.getByRole("heading", { name: /редактирование промпта/i })).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: /удалить prompt a навсегда/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^удалить$/i }));
 
   await waitFor(() => {
     expect(deleteRoomAdminPromptMock).toHaveBeenCalledWith(7, 5);
@@ -321,7 +322,7 @@ test("shows user-facing prompt CRUD errors", async () => {
 
   expect(await screen.findByRole("alert")).toHaveTextContent(/create failed/i);
 
-  fireEvent.click(screen.getByRole("button", { name: /редактировать prompt a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^редактировать$/i }));
   fireEvent.change(screen.getByLabelText(/название промпта/i), { target: { value: "Prompt A+" } });
   fireEvent.click(screen.getByRole("button", { name: /сохранить изменения/i }));
 
@@ -329,7 +330,7 @@ test("shows user-facing prompt CRUD errors", async () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/update failed/i);
   });
 
-  fireEvent.click(screen.getByRole("button", { name: /удалить prompt a навсегда/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^удалить$/i }));
 
   await waitFor(() => {
     expect(screen.getByRole("alert")).toHaveTextContent(/delete failed/i);

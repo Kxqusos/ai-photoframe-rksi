@@ -13,10 +13,10 @@ describe("roomRouting", () => {
     expect(buildRoomApiPath("Room A", "/jobs")).toBe("/api/rooms/ph000000/jobs");
   });
 
-  test("builds public room path and keeps default room on root", () => {
-    expect(buildPublicRoomPath("ph000000")).toBe("/");
-    expect(buildPublicRoomPath("ph000000", "/gallery")).toBe("/gallery");
-    expect(buildPublicRoomPath("ph000000", "/result/dddddddd")).toBe("/result/dddddddd");
+  test("builds public room path with explicit slug even for the default room", () => {
+    expect(buildPublicRoomPath("ph000000")).toBe("/ph000000");
+    expect(buildPublicRoomPath("ph000000", "/gallery")).toBe("/ph000000/gallery");
+    expect(buildPublicRoomPath("ph000000", "/result/dddddddd")).toBe("/ph000000/result/dddddddd");
     expect(buildPublicRoomPath("aaaaaaaa")).toBe("/aaaaaaaa");
     expect(buildPublicRoomPath("aaaaaaaa", "/gallery")).toBe("/aaaaaaaa/gallery");
   });

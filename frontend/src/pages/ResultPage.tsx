@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { getRoomJobStatus } from "../lib/api";
 import { buildPublicRoomPath, normalizeResultHash, normalizeRoomSlug } from "../lib/roomRouting";

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { Room, RoomCreatePayload, RoomPatchPayload } from "../types";
 
@@ -13,7 +13,6 @@ const DEFAULT_MODEL = "openai/gpt-5-image";
 
 export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }: Props) {
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
   const [modelName, setModelName] = useState(DEFAULT_MODEL);
   const [isActive, setIsActive] = useState(true);
   const [password, setPassword] = useState("");
@@ -21,7 +20,6 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
   useEffect(() => {
     if (!editingRoom) {
       setName("");
-      setSlug("");
       setModelName(DEFAULT_MODEL);
       setIsActive(true);
       setPassword("");
@@ -29,7 +27,6 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
     }
 
     setName(editingRoom.name);
-    setSlug(editingRoom.slug);
     setModelName(editingRoom.model_name);
     setIsActive(editingRoom.is_active);
     setPassword("");
@@ -41,12 +38,7 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
     }
 
     if (editingRoom) {
-      if (!slug.trim()) {
-        return;
-      }
-
       const updated = await onUpdate(editingRoom.id, {
-        slug: slug.trim(),
         name: name.trim(),
         model_name: modelName.trim() || DEFAULT_MODEL,
         is_active: isActive,
@@ -83,46 +75,46 @@ export function AdminRoomForm({ editingRoom, onCreate, onUpdate, onCancelEdit }:
           <h2>{editingRoom ? "Редактирование комнаты" : "Новая комната"}</h2>
           <p className="section-support">
             {editingRoom
-              ? "Обновите параметры комнаты и сохраните изменения без перехода в отдельный экран."
-              : "Задайте название и модель, чтобы сразу подготовить комнату к работе."}
+              ? "Обновление параметров комнаты."
+              : "Задайте название, модель и пароль."}
           </p>
         </div>
       </div>
 
-      <label htmlFor="admin-room-name">Название</label>
-      <input id="admin-room-name" value={name} onChange={(event) => setName(event.target.value)} />
+      <div className="field-stack">
+        <label htmlFor="admin-room-name">Название</label>
+        <input id="admin-room-name" value={name} onChange={(event) => setName(event.target.value)} />
+      </div>
+
+      <div className="field-stack">
+        <label htmlFor="admin-room-model">Модель</label>
+        <input id="admin-room-model" value={modelName} onChange={(event) => setModelName(event.target.value)} />
+      </div>
+
+      <div className="field-stack">
+        <label htmlFor="admin-room-password">Пароль комнаты</label>
+        <input
+          id="admin-room-password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder={editingRoom ? "Оставьте пустым, чтобы не менять" : "Введите пароль комнаты"}
+        />
+      </div>
 
       {editingRoom ? (
-        <>
-          <label htmlFor="admin-room-slug">Slug</label>
-          <input id="admin-room-slug" value={slug} onChange={(event) => setSlug(event.target.value)} />
-        </>
-      ) : null}
-
-      <label htmlFor="admin-room-model">Модель</label>
-      <input id="admin-room-model" value={modelName} onChange={(event) => setModelName(event.target.value)} />
-
-      <label htmlFor="admin-room-password">Пароль комнаты</label>
-      <input
-        id="admin-room-password"
-        type="password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        placeholder={editingRoom ? "Оставьте пустым, чтобы не менять" : "Введите пароль комнаты"}
-      />
-
-      {editingRoom ? (
-        <>
-          <label htmlFor="admin-room-active">
+        <div className="field-stack">
+          <label htmlFor="admin-room-active" className="checkbox-field">
             <input
               id="admin-room-active"
+              className="checkbox-input"
               type="checkbox"
               checked={isActive}
               onChange={(event) => setIsActive(event.target.checked)}
             />
             Комната активна
           </label>
-        </>
+        </div>
       ) : null}
 
       <div className="action-row">

@@ -20,4 +20,12 @@ describe("vite dev proxy", () => {
     expect(allowedHosts).toContain("ии.ркси.рф");
     expect(allowedHosts).toContain("xn--h1aa.xn--h1adrf.xn--p1ai");
   });
+
+  it("allows rksi host on the dev server too", () => {
+    const server = config.server ?? {};
+    const allowedHosts = server.allowedHosts ?? [];
+
+    expect(allowedHosts).toContain("ии.ркси.рф");
+    expect(allowedHosts).toContain("xn--h1aa.xn--h1adrf.xn--p1ai");
+  });
 });

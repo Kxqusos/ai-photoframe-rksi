@@ -26,9 +26,6 @@ export function buildRoomApiPath(roomSlug: string, suffix: string): string {
 export function buildPublicRoomPath(roomSlug: string, suffix = ""): string {
   const slug = normalizeRoomSlug(roomSlug);
   const normalizedSuffix = suffix ? (suffix.startsWith("/") ? suffix : `/${suffix}`) : "";
-  if (slug === DEFAULT_ROOM_SLUG) {
-    return normalizedSuffix || "/";
-  }
   return `/${slug}${normalizedSuffix}`;
 }
 

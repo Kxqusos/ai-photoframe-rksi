@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { PromptForm, type PromptFormValues } from "./PromptForm";
 import type { StylePrompt } from "../types";
@@ -163,25 +163,24 @@ export function AdminPromptManager({ prompts, onCreate, onUpdate, onDelete }: Pr
           return (
             <article key={item.id} className="prompt-item prompt-card">
               <div className="prompt-card__media">
-                <img src={item.preview_image_url} alt={`${item.name} preview`} width={120} height={80} />
+                <img src={item.preview_image_url} alt={`${item.name} preview`} width={148} height={112} />
               </div>
               <div className="prompt-card__content">
                 <h3>{item.name}</h3>
                 <p>{item.description}</p>
-                <p className="prompt-card__meta">Превью: {item.preview_image_url}</p>
               </div>
               <div className="prompt-item__actions">
                 <button type="button" className="button-secondary" onClick={() => startEditing(item)}>
-                  Редактировать {item.name}
+                  Редактировать
                 </button>
                 <button
                   type="button"
                   className="button-danger"
-                  aria-label={isDeleting ? `Удаляем ${item.name}` : `Удалить ${item.name} навсегда`}
+                  aria-label={isDeleting ? "Удаляем..." : "Удалить"}
                   onClick={() => void handleDelete(item.id)}
                   disabled={isDeleting}
                 >
-                  {isDeleting ? "Удаляем..." : "Удалить навсегда"}
+                  {isDeleting ? "Удаляем..." : "Удалить"}
                 </button>
               </div>
             </article>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { accessRoom, listPublicRooms } from "../lib/api";
 import { navigateTo } from "../lib/navigation";
@@ -92,74 +92,86 @@ export function PublicLandingPage({ initialRoomSlug = null, redirectPath }: Prop
 
   return (
     <main className="page public-landing-page">
-      <header className="public-landing-page__header">
-        <div className="public-landing-page__brand">ии фоторамка</div>
-        <a className="public-landing-page__admin-link" href="/admin/login">
-          вход
-        </a>
-      </header>
-
       <section className="public-landing-page__panel">
-        <div className="public-landing-page__intro">
-          <p className="public-landing-page__eyebrow">Выбор комнаты</p>
-          <h1>{selectedRoomName}</h1>
-          <p>Выберите комнату и введите пароль, чтобы открыть съемку, галерею и результаты.</p>
+        <div className="public-landing-page__panel-head">
+          <div className="public-landing-page__intro">
+            <p className="public-landing-page__eyebrow">Выбор комнаты</p>
+            <h1>{selectedRoomName}</h1>
+            <p>Выберите комнату и введите пароль, чтобы открыть съемку, галерею и результаты.</p>
+          </div>
+          <a className="public-landing-page__admin-link" href="/admin/login">
+            Вход
+          </a>
         </div>
 
         {loading ? <p className="public-landing-page__status">Загружаем комнаты...</p> : null}
         {error ? <p className="public-landing-page__status public-landing-page__status--error">{error}</p> : null}
 
-        <div className="public-landing-page__rooms" aria-label="список комнат">
-          {rooms.map((room) => (
-            <button
-              key={room.slug}
-              type="button"
-              className={`public-landing-page__room${room.slug === selectedRoomSlug ? " is-selected" : ""}`}
-              onClick={() => {
-                setSelectedRoomSlug(room.slug);
-                setError("");
-              }}
-            >
-              {toDisplayRoomName(room)}
-            </button>
-          ))}
-        </div>
-
-        <div className="public-landing-page__form">
-          {redirectPath ? null : (
-            <div className="public-landing-page__targets" aria-label="раздел комнаты">
-              <button
-                type="button"
-                className={`public-landing-page__target${selectedDestination === "capture" ? " is-selected" : ""}`}
-                onClick={() => setSelectedDestination("capture")}
-              >
-                Съемка
-              </button>
-              <button
-                type="button"
-                className={`public-landing-page__target${selectedDestination === "gallery" ? " is-selected" : ""}`}
-                onClick={() => setSelectedDestination("gallery")}
-              >
-                Галерея
-              </button>
+        <div className="public-landing-page__content">
+          <section className="public-landing-page__rooms-panel">
+            <div className="public-landing-page__rooms-header">
+              <p className="public-landing-page__rooms-label">Комнаты</p>
+              <p className="public-landing-page__rooms-support">Выберите нужную сцену перед входом.</p>
             </div>
-          )}
-          <label htmlFor="public-room-password">Пароль комнаты</label>
-          <input
-            id="public-room-password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                void onSubmit();
-              }
-            }}
-            placeholder="Введите пароль"
-          />
-          <button type="button" onClick={() => void onSubmit()} disabled={submitting || loading || rooms.length === 0}>
-            {submitting ? "Проверяем..." : "Открыть комнату"}
-          </button>
+
+            <div className="public-landing-page__rooms" aria-label="список комнат">
+              {rooms.map((room) => (
+                <button
+                  key={room.slug}
+                  type="button"
+                  className={`public-landing-page__room${room.slug === selectedRoomSlug ? " is-selected" : ""}`}
+                  onClick={() => {
+                    setSelectedRoomSlug(room.slug);
+                    setError("");
+                  }}
+                >
+                  <span className="public-landing-page__room-name">{toDisplayRoomName(room)}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="public-landing-page__form" aria-label="настройки входа">
+            <div className="public-landing-page__form-header">
+              <p className="public-landing-page__form-eyebrow">Вход в комнату</p>
+              <p className="public-landing-page__form-room">Выбрано: {selectedRoomName}</p>
+            </div>
+
+            {redirectPath ? null : (
+              <div className="public-landing-page__targets" aria-label="раздел комнаты">
+                <button
+                  type="button"
+                  className={`public-landing-page__target${selectedDestination === "capture" ? " is-selected" : ""}`}
+                  onClick={() => setSelectedDestination("capture")}
+                >
+                  Съемка
+                </button>
+                <button
+                  type="button"
+                  className={`public-landing-page__target${selectedDestination === "gallery" ? " is-selected" : ""}`}
+                  onClick={() => setSelectedDestination("gallery")}
+                >
+                  Галерея
+                </button>
+              </div>
+            )}
+            <label htmlFor="public-room-password">Пароль комнаты</label>
+            <input
+              id="public-room-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void onSubmit();
+                }
+              }}
+              placeholder="Введите пароль"
+            />
+            <button type="button" onClick={() => void onSubmit()} disabled={submitting || loading || rooms.length === 0}>
+              {submitting ? "Проверяем..." : "Открыть комнату"}
+            </button>
+          </section>
         </div>
       </section>
     </main>

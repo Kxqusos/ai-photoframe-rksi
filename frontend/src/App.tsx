@@ -1,4 +1,3 @@
-import React from "react";
 import { useEffect, useState } from "react";
 
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
@@ -9,7 +8,7 @@ import { GalleryPage } from "./pages/GalleryPage";
 import { PublicLandingPage } from "./pages/PublicLandingPage";
 import { ResultPage } from "./pages/ResultPage";
 import { hasRoomAccessToken } from "./lib/roomAccess";
-import { DEFAULT_ROOM_SLUG, resolvePublicRoute } from "./lib/roomRouting";
+import { resolvePublicRoute } from "./lib/roomRouting";
 
 function resolvePathname(): string {
   if (typeof window === "undefined") {
@@ -36,7 +35,10 @@ function renderShell(content: React.ReactNode, options?: { publicShell?: boolean
 
 export default function App() {
   const [pathname, setPathname] = useState(resolvePathname);
-  const hasDefaultRoomAccess = hasRoomAccessToken(DEFAULT_ROOM_SLUG);
+
+  useEffect(() => {
+    document.title = "ИИ Фоторамка";
+  }, []);
 
   useEffect(() => {
     const onPopstate = () => setPathname(resolvePathname());
@@ -58,9 +60,6 @@ export default function App() {
   }
 
   if (pathname === "/") {
-    if (hasDefaultRoomAccess) {
-      return renderShell(<CapturePage roomSlug={DEFAULT_ROOM_SLUG} />, { publicShell: true });
-    }
     return renderShell(<PublicLandingPage />);
   }
 
@@ -78,5 +77,5 @@ export default function App() {
     return renderShell(<CapturePage roomSlug={route.roomSlug} />, { publicShell: true });
   }
 
-  return renderShell(<PublicLandingPage initialRoomSlug={DEFAULT_ROOM_SLUG} />);
+  return renderShell(<PublicLandingPage />);
 }

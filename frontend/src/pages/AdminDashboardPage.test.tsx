@@ -68,15 +68,16 @@ test("loads rooms and allows creating a room", async () => {
   expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: /новая комната/i })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: /комнаты/i })).toBeInTheDocument();
-  expect(screen.getByText(/aaaaaaaa/i)).toBeInTheDocument();
+  expect(screen.queryByText(/aaaaaaaa/i)).not.toBeInTheDocument();
   expect(screen.getByText(/активна/i)).toBeInTheDocument();
   expect(screen.getByText(/^m$/i)).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: /room a/i }).closest("article")).toHaveClass("room-card");
   expect(screen.getByRole("heading", { name: /room a/i }).closest("article")).not.toHaveClass("prompt-card");
-  expect(screen.getByRole("button", { name: /редактировать room a/i })).toHaveClass("button-secondary");
-  expect(screen.getByRole("button", { name: /удалить room a/i })).toHaveClass("button-danger");
-  expect(screen.getByRole("link", { name: /открыть room a/i })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: /открыть room a/i })).toHaveClass("button-secondary");
+  expect(screen.getByRole("button", { name: /^редактировать$/i })).toHaveClass("button-secondary");
+  expect(screen.getByRole("button", { name: /^удалить$/i })).toHaveClass("button-danger");
+  expect(screen.getByRole("button", { name: /^удалить$/i })).toHaveAccessibleName("Удалить");
+  expect(screen.getByRole("link", { name: /^открыть$/i })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /^открыть$/i })).toHaveClass("button-secondary");
 
   fireEvent.change(screen.getByLabelText(/название/i), { target: { value: "Room B" } });
   fireEvent.change(screen.getByLabelText(/пароль комнаты/i), { target: { value: "room-b-pass" } });
@@ -123,13 +124,12 @@ test("allows editing and deleting rooms from the dashboard", async () => {
 
   expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: /редактировать room a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^редактировать$/i }));
   expect(screen.getByRole("heading", { name: /редактирование комнаты/i })).toBeInTheDocument();
   expect(screen.getByLabelText(/название/i)).toHaveValue("Room A");
-  expect(screen.getByLabelText(/slug/i)).toHaveValue("aaaaaaaa");
+  expect(screen.queryByLabelText(/slug/i)).not.toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText(/название/i), { target: { value: "Room A Updated" } });
-  fireEvent.change(screen.getByLabelText(/slug/i), { target: { value: "aaaabbbb" } });
   fireEvent.click(screen.getByLabelText(/комната активна/i));
   fireEvent.click(screen.getByRole("button", { name: /сохранить изменения/i }));
 
@@ -138,7 +138,6 @@ test("allows editing and deleting rooms from the dashboard", async () => {
       1,
       expect.objectContaining({
         name: "Room A Updated",
-        slug: "aaaabbbb",
         model_name: "m",
         is_active: false
       })
@@ -148,7 +147,11 @@ test("allows editing and deleting rooms from the dashboard", async () => {
   expect(await screen.findByRole("heading", { name: /room a updated/i })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: /room a updated/i }).closest("article")).toHaveTextContent(/выключена/i);
 
-  fireEvent.click(screen.getByRole("button", { name: /удалить room a updated/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^удалить$/i }));
+  expect(screen.getByRole("dialog", { name: /подтвердить удаление комнаты/i })).toBeInTheDocument();
+  expect(deleteRoomMock).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("button", { name: /удалить комнату/i }));
 
   await waitFor(() => {
     expect(deleteRoomMock).toHaveBeenCalledWith(1);
@@ -166,11 +169,11 @@ test("shows room patch/delete errors and allows cancelling edit mode", async () 
 
   expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: /редактировать room a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^редактировать$/i }));
   fireEvent.click(screen.getByRole("button", { name: /отменить редактирование/i }));
   expect(screen.getByRole("heading", { name: /новая комната/i })).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: /редактировать room a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^редактировать$/i }));
   fireEvent.change(screen.getByLabelText(/название/i), { target: { value: "Room A+" } });
   fireEvent.click(screen.getByRole("button", { name: /сохранить изменения/i }));
 
@@ -178,21 +181,41 @@ test("shows room patch/delete errors and allows cancelling edit mode", async () 
     expect(screen.getByRole("alert")).toHaveTextContent(/patch failed/i);
   });
 
-  fireEvent.click(screen.getByRole("button", { name: /удалить room a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^удалить$/i }));
+  expect(screen.getByRole("dialog", { name: /подтвердить удаление комнаты/i })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /удалить комнату/i }));
 
   await waitFor(() => {
     expect(screen.getByRole("alert")).toHaveTextContent(/delete failed/i);
   });
 });
 
-test("loads llm routing card and allows saving, testing and toggling routing", async () => {
+test("requires explicit confirmation before deleting a room and allows cancelling the modal", async () => {
+  loadAdminTokenMock.mockReturnValue("jwt-token");
+  listRoomsMock.mockResolvedValue([{ id: 1, slug: "aaaaaaaa", name: "Room A", model_name: "m", is_active: true }]);
+  deleteRoomMock.mockResolvedValue(undefined);
+
+  render(<AdminDashboardPage />);
+
+  expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: /^удалить$/i }));
+  expect(screen.getByRole("dialog", { name: /подтвердить удаление комнаты/i })).toBeInTheDocument();
+  expect(deleteRoomMock).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("button", { name: /отменить/i }));
+  expect(screen.queryByRole("dialog", { name: /подтвердить удаление комнаты/i })).not.toBeInTheDocument();
+  expect(deleteRoomMock).not.toHaveBeenCalled();
+});
+
+test("loads llm routing card, shows explicit russian statuses, and saves the current draft before test/toggle", async () => {
   loadAdminTokenMock.mockReturnValue("jwt-token");
   listRoomsMock.mockResolvedValue([{ id: 1, slug: "aaaaaaaa", name: "Room A", model_name: "m", is_active: true }]);
   updateLlmRoutingConfigMock.mockResolvedValue({
     enabled: false,
-    status: "error",
+    status: "disabled",
     vless_uri: "vless://uuid@example.com:443",
-    last_error: "probe timeout",
+    last_error: null,
     last_checked_at: "2026-03-17T12:00:00",
     last_applied_at: "2026-03-17T12:00:00"
   });
@@ -217,23 +240,59 @@ test("loads llm routing card and allows saving, testing and toggling routing", a
 
   expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: /llm routing/i })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /сохранить и применить/i })).not.toBeInTheDocument();
+  expect(screen.queryByText(/статус подключения:/i)).not.toBeInTheDocument();
+  const routingStatus = screen.getByText(/маршрутизация/i).closest(".routing-status-chip");
+  expect(routingStatus).not.toBeNull();
+  expect(routingStatus).toHaveClass("routing-status-chip", "routing-status-chip--disabled");
+  expect(routingStatus).toHaveTextContent(/^маршрутизация/i);
+  expect(routingStatus).toHaveTextContent(/выключена/i);
+  expect(routingStatus?.querySelector(".routing-status-chip__dot")).not.toBeNull();
 
-  fireEvent.change(screen.getByLabelText(/vless uri/i), { target: { value: "vless://uuid@example.com:443" } });
-  fireEvent.click(screen.getByRole("button", { name: /сохранить и применить/i }));
-
-  await waitFor(() => {
-    expect(updateLlmRoutingConfigMock).toHaveBeenCalledWith("vless://uuid@example.com:443");
-    expect(screen.getByText(/probe timeout/i)).toBeInTheDocument();
-  });
-
+  fireEvent.change(screen.getByLabelText(/vless url/i), { target: { value: "vless://uuid@example.com:443" } });
   fireEvent.click(screen.getByRole("button", { name: /проверить подключение/i }));
   await waitFor(() => {
+    expect(updateLlmRoutingConfigMock).toHaveBeenCalledWith("vless://uuid@example.com:443");
     expect(testLlmRoutingMock).toHaveBeenCalled();
+    expect(screen.queryByText(/статус подключения:/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/ключ vless проверен/i)).toBeInTheDocument();
+    expect(screen.queryByText(/подключение успешно проверено/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveClass("routing-feedback", "routing-feedback--success");
   });
 
   fireEvent.click(screen.getByRole("button", { name: /включить маршрутизацию/i }));
   await waitFor(() => {
     expect(toggleLlmRoutingMock).toHaveBeenCalledWith(true);
-    expect(screen.getByText(/active/i)).toBeInTheDocument();
+    expect(screen.queryByText(/статус подключения:/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/маршрутизация/i).closest(".routing-status-chip")).toHaveClass(
+      "routing-status-chip",
+      "routing-status-chip--enabled"
+    );
+    expect(screen.getByText(/маршрутизация/i).closest(".routing-status-chip")).toHaveTextContent(/включена/i);
   });
+});
+
+test("groups routing controls into a dedicated stack so the status card spacing stays consistent", async () => {
+  loadAdminTokenMock.mockReturnValue("jwt-token");
+  listRoomsMock.mockResolvedValue([{ id: 1, slug: "aaaaaaaa", name: "Room A", model_name: "m", is_active: true }]);
+  getLlmRoutingMock.mockResolvedValue({
+    enabled: false,
+    status: "disabled",
+    vless_uri: "vless://uuid@example.com:443",
+    last_error: null,
+    last_checked_at: "2026-03-17T12:01:00",
+    last_applied_at: "2026-03-17T12:01:00"
+  });
+
+  const { container } = render(<AdminDashboardPage />);
+
+  expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
+
+  const routingStack = container.querySelector(".routing-stack");
+  expect(routingStack).not.toBeNull();
+  expect(routingStack).toContainElement(screen.getByLabelText(/vless url/i));
+  expect(routingStack).toContainElement(screen.getByText(/маршрутизация/i).closest(".routing-status-chip"));
+  expect(routingStack).toContainElement(screen.getByRole("status"));
+  expect(screen.queryByText(/подключение успешно проверено/i)).not.toBeInTheDocument();
+  expect(routingStack).toContainElement(screen.getByRole("button", { name: /проверить подключение/i }));
 });

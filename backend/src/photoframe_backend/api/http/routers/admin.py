@@ -110,16 +110,8 @@ def patch_room(room_id: int, payload: RoomPatch, db: DbSession) -> Room:
 def delete_room(room_id: int, db: DbSession) -> Response:
     room = _get_room_or_404(db, room_id)
 
-    if room.slug == settings.app.default_public_room_slug:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="default room cannot be deleted")
-    if db.query(Prompt.id).filter(Prompt.room_id == room_id).first() is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="room cannot be deleted while prompts exist")
-    if db.query(GenerationJob.id).filter(GenerationJob.room_id == room_id).first() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="room cannot be deleted while generation jobs exist",
-        )
-
+    db.query(GenerationJob).filter(GenerationJob.room_id == room_id).delete(synchronize_session=False)
+    db.query(Prompt).filter(Prompt.room_id == room_id).delete(synchronize_session=False)
     db.delete(room)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

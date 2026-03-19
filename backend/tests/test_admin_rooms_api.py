@@ -2,8 +2,10 @@ import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from photoframe_backend.infrastructure.db.base import Base
+from photoframe_backend.infrastructure.db.models import GenerationJob
 from photoframe_backend.infrastructure.db.session import engine
 from photoframe_backend.main import app
 
@@ -114,7 +116,7 @@ def test_admin_room_delete_removes_room(monkeypatch) -> None:
     assert all(room["id"] != room_id for room in listed.json())
 
 
-def test_admin_room_delete_rejects_default_room(monkeypatch) -> None:
+def test_admin_room_delete_allows_default_room(monkeypatch) -> None:
     _reset_db()
     username, password = _configure_admin_credentials(monkeypatch)
     client = TestClient(app)
@@ -136,11 +138,10 @@ def test_admin_room_delete_rejects_default_room(monkeypatch) -> None:
     room_id = created.json()["id"]
 
     deleted = client.delete(f"/api/admin/rooms/{room_id}", headers=headers)
-    assert deleted.status_code == 409
-    assert deleted.json()["detail"] == "default room cannot be deleted"
+    assert deleted.status_code == 204
 
 
-def test_admin_room_delete_rejects_room_with_prompts(monkeypatch) -> None:
+def test_admin_room_delete_removes_room_with_prompts(monkeypatch) -> None:
     _reset_db()
     username, password = _configure_admin_credentials(monkeypatch)
     client = TestClient(app)
@@ -175,8 +176,50 @@ def test_admin_room_delete_rejects_room_with_prompts(monkeypatch) -> None:
     assert prompt_created.status_code == 201
 
     deleted = client.delete(f"/api/admin/rooms/{room_id}", headers=headers)
-    assert deleted.status_code == 409
-    assert deleted.json()["detail"] == "room cannot be deleted while prompts exist"
+    assert deleted.status_code == 204
+
+
+def test_admin_room_delete_removes_room_with_generation_jobs(monkeypatch) -> None:
+    _reset_db()
+    username, password = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+    token = _get_admin_token(client, username, password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/api/admin/rooms",
+        headers=headers,
+        json={
+            "slug": "ffffffff",
+            "name": "Room F",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "room-f-pass",
+        },
+    )
+    assert created.status_code == 201
+    room_id = created.json()["id"]
+
+    prompt_created = client.post(
+        f"/api/admin/rooms/{room_id}/prompts",
+        headers=headers,
+        json={
+            "name": "Prompt F",
+            "description": "desc",
+            "prompt": "prompt body",
+            "preview_image_url": "/media/previews/f.jpg",
+            "icon_image_url": "/media/icons/f.png",
+        },
+    )
+    assert prompt_created.status_code == 201
+    prompt_id = prompt_created.json()["id"]
+
+    with Session(engine) as db:
+        db.add(GenerationJob(prompt_id=prompt_id, room_id=room_id, status="completed", qr_hash="room-f-job"))
+        db.commit()
+
+    deleted = client.delete(f"/api/admin/rooms/{room_id}", headers=headers)
+    assert deleted.status_code == 204
 
 
 def test_admin_room_prompt_endpoints_are_scoped(monkeypatch) -> None:

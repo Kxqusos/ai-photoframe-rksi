@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AdminPromptManager } from "../components/AdminPromptManager";
 import {
@@ -169,10 +169,6 @@ export function AdminRoomEditorPage({ roomSlug }: Props) {
         </div>
         <div className="summary-grid">
           <article className="summary-card">
-            <span className="summary-card__label">Идентификатор</span>
-            <strong className="summary-card__value">{room?.slug || roomSlug}</strong>
-          </article>
-          <article className="summary-card">
             <span className="summary-card__label">Статус</span>
             <strong className="summary-card__value">{room?.is_active ? "Активна" : "Выключена"}</strong>
           </article>
@@ -210,7 +206,6 @@ export function AdminRoomEditorPage({ roomSlug }: Props) {
         <div className="section-header">
           <div>
             <h2>Промпты комнаты</h2>
-            <p className="section-support">Используйте одинаковый поток создания и редактирования, чтобы не терять контекст.</p>
           </div>
         </div>
 

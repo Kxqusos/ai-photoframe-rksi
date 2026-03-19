@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AdminRoomForm } from "../components/AdminRoomForm";
 import { createRoom, deleteRoom, getLlmRouting, listRooms, patchRoom, testLlmRouting, toggleLlmRouting, updateLlmRoutingConfig } from "../lib/api";
@@ -6,11 +6,16 @@ import { loadAdminToken } from "../lib/auth";
 import { navigateTo } from "../lib/navigation";
 import type { LlmRoutingSettings, Room, RoomCreatePayload, RoomPatchPayload } from "../types";
 
+function hasSuccessfulRoutingCheck(routing: LlmRoutingSettings | null): boolean {
+  return Boolean(routing?.last_checked_at && !routing?.last_error);
+}
+
 export function AdminDashboardPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [routing, setRouting] = useState<LlmRoutingSettings | null>(null);
   const [routingDraft, setRoutingDraft] = useState("");
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [roomPendingDelete, setRoomPendingDelete] = useState<Room | null>(null);
   const [deletingRoomId, setDeletingRoomId] = useState<number | null>(null);
   const [routingPending, setRoutingPending] = useState(false);
   const [error, setError] = useState("");
@@ -81,25 +86,37 @@ export function AdminDashboardPage() {
     setError("");
   }
 
-  async function onSaveRouting(): Promise<void> {
-    setRoutingPending(true);
-    setError("");
-    try {
-      const next = await updateLlmRoutingConfig(routingDraft);
-      setRouting(next);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось сохранить llm routing");
-    } finally {
-      setRoutingPending(false);
+  async function confirmDeleteRoom(): Promise<void> {
+    if (!roomPendingDelete) {
+      return;
     }
+
+    const roomId = roomPendingDelete.id;
+    await onDelete(roomId);
+    setRoomPendingDelete(null);
+  }
+
+  async function persistRoutingDraftIfNeeded(): Promise<LlmRoutingSettings | null> {
+    const draft = routingDraft.trim();
+    const current = routing?.vless_uri.trim() || "";
+    if (!draft || draft === current) {
+      return null;
+    }
+
+    const next = await updateLlmRoutingConfig(draft);
+    setRouting(next);
+    setRoutingDraft(next.vless_uri);
+    return next;
   }
 
   async function onTestRouting(): Promise<void> {
     setRoutingPending(true);
     setError("");
     try {
+      await persistRoutingDraftIfNeeded();
       const next = await testLlmRouting();
       setRouting(next);
+      setRoutingDraft(next.vless_uri);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось проверить llm routing");
     } finally {
@@ -111,8 +128,10 @@ export function AdminDashboardPage() {
     setRoutingPending(true);
     setError("");
     try {
+      await persistRoutingDraftIfNeeded();
       const next = await toggleLlmRouting(enabled);
       setRouting(next);
+      setRoutingDraft(next.vless_uri);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось переключить llm routing");
     } finally {
@@ -131,38 +150,53 @@ export function AdminDashboardPage() {
         <div className="section-header">
           <div>
             <h2>LLM Routing</h2>
-            <p className="section-support">Глобальная маршрутизация LLM-запросов через VLESS+Reality для всех комнат.</p>
           </div>
         </div>
 
-        <label htmlFor="admin-llm-routing-vless">VLESS URI</label>
-        <textarea
-          id="admin-llm-routing-vless"
-          value={routingDraft}
-          onChange={(event) => setRoutingDraft(event.target.value)}
-          rows={4}
-          placeholder="vless://..."
-        />
-        <div className="detail-pills">
-          <span className="detail-pill">Статус: {routing?.status || "disabled"}</span>
-          <span className="detail-pill">Маршрутизация: {routing?.enabled ? "Включена" : "Выключена"}</span>
-        </div>
-        {routing?.last_error ? <p role="status">{routing.last_error}</p> : null}
-        <div className="action-row">
-          <button type="button" onClick={() => void onSaveRouting()} disabled={routingPending}>
-            Сохранить и применить
-          </button>
-          <button type="button" className="button-secondary" onClick={() => void onTestRouting()} disabled={routingPending}>
-            Проверить подключение
-          </button>
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={() => void onToggleRouting(!(routing?.enabled ?? false))}
-            disabled={routingPending}
-          >
-            {routing?.enabled ? "Отключить маршрутизацию" : "Включить маршрутизацию"}
-          </button>
+        <div className="routing-stack">
+          <label htmlFor="admin-llm-routing-vless">VLESS URL</label>
+          <textarea
+            id="admin-llm-routing-vless"
+            value={routingDraft}
+            onChange={(event) => setRoutingDraft(event.target.value)}
+            rows={4}
+            placeholder="vless://..."
+          />
+          <div className="detail-pills">
+            <span className={`routing-status-chip${routing?.enabled ? " routing-status-chip--enabled" : " routing-status-chip--disabled"}`}>
+              <span className="routing-status-chip__dot" aria-hidden="true" />
+              <span className="routing-status-chip__label">Маршрутизация</span>
+              <span className="routing-status-chip__value">{routing?.enabled ? "Включена" : "Выключена"}</span>
+            </span>
+          </div>
+          {hasSuccessfulRoutingCheck(routing) ? (
+            <p role="status" aria-label="Подключение успешно проверено" className="routing-feedback routing-feedback--success">
+              <span className="routing-feedback__body">
+                <strong className="routing-feedback__title">Ключ VLESS проверен</strong>
+              </span>
+            </p>
+          ) : null}
+          {routing?.last_error ? (
+            <p role="status" className="routing-feedback routing-feedback--error">
+              <span className="routing-feedback__body">
+                <strong className="routing-feedback__title">Ошибка проверки</strong>
+                <span className="routing-feedback__message">Последняя ошибка: {routing.last_error}</span>
+              </span>
+            </p>
+          ) : null}
+          <div className="action-row">
+            <button type="button" className="button-secondary" onClick={() => void onTestRouting()} disabled={routingPending}>
+              Проверить подключение
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => void onToggleRouting(!(routing?.enabled ?? false))}
+              disabled={routingPending}
+            >
+              {routing?.enabled ? "Отключить маршрутизацию" : "Включить маршрутизацию"}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -170,7 +204,6 @@ export function AdminDashboardPage() {
         <div className="section-header">
           <div>
             <h2>Комнаты</h2>
-            <p className="section-support">Здесь собраны все комнаты с краткой сводкой и быстрым переходом в редактор.</p>
           </div>
         </div>
 
@@ -185,7 +218,6 @@ export function AdminDashboardPage() {
             <article key={room.id} className="prompt-item room-card">
               <div className="prompt-card__content">
                 <h3>{room.name}</h3>
-                <p>{room.slug}</p>
                 <div className="detail-pills">
                   <span className="detail-pill">{room.is_active ? "Активна" : "Выключена"}</span>
                   <span className="detail-pill">{room.model_name}</span>
@@ -193,22 +225,18 @@ export function AdminDashboardPage() {
               </div>
               <div className="prompt-item__actions">
                 <button type="button" className="button-secondary" onClick={() => setEditingRoom(room)}>
-                  Редактировать {room.name}
+                  Редактировать
                 </button>
                 <button
                   type="button"
                   className="button-danger"
-                  aria-label={`Удалить ${room.name}`}
-                  onClick={() => void onDelete(room.id)}
+                  aria-label="Удалить"
+                  onClick={() => setRoomPendingDelete(room)}
                   disabled={deletingRoomId === room.id}
                 >
                   {deletingRoomId === room.id ? "Удаляем..." : "Удалить"}
                 </button>
-                <a
-                  href={`/admin/rooms/${room.slug}`}
-                  aria-label={`Открыть ${room.name}`}
-                  className="button-secondary room-card__link"
-                >
+                <a href={`/admin/rooms/${room.slug}`} aria-label="Открыть" className="button-secondary room-card__link">
                   Открыть
                 </a>
               </div>
@@ -216,6 +244,28 @@ export function AdminDashboardPage() {
           ))}
         </div>
       </section>
+
+      {roomPendingDelete ? (
+        <div className="modal-backdrop">
+          <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="confirm-room-delete-title">
+            <p className="modal-eyebrow">Подтверждение</p>
+            <h2 id="confirm-room-delete-title" className="modal-title">
+              Подтвердить удаление комнаты
+            </h2>
+            <p className="modal-text">
+              Комната <strong>{roomPendingDelete.name}</strong> будет удалена вместе со связанными данными.
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="button-secondary" onClick={() => setRoomPendingDelete(null)} disabled={deletingRoomId !== null}>
+                Отменить
+              </button>
+              <button type="button" className="button-danger" onClick={() => void confirmDeleteRoom()} disabled={deletingRoomId !== null}>
+                {deletingRoomId === roomPendingDelete.id ? "Удаляем..." : "Удалить комнату"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

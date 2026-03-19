@@ -1,5 +1,3 @@
-import React from "react";
-
 type PromptFormValues = {
   name: string;
   description: string;
@@ -50,6 +48,8 @@ export function PromptForm({
   const resolvedHeading = heading || (isEditing ? "Редактирование промпта" : "Новый промпт");
   const resolvedSubmitLabel = submitLabel || (isEditing ? "Сохранить изменения" : "Создать промпт");
   const resolvedSubmittingLabel = submittingLabel || (isEditing ? "Сохраняем изменения..." : "Создаем промпт...");
+  const previewFieldTitle = values.previewFile ? values.previewFile.name : "Выберите изображение для карточки стиля";
+  const previewFieldMeta = values.previewFile ? "Новый файл готов к загрузке" : "PNG, JPG или JPEG. Нажмите, чтобы выбрать файл.";
 
   return (
     <section className="panel form-grid prompt-form">
@@ -82,13 +82,20 @@ export function PromptForm({
       />
 
       <label htmlFor="prompt-preview">{previewLabel}</label>
-      <input
-        key={fileInputKey}
-        id="prompt-preview"
-        type="file"
-        accept="image/*"
-        onChange={(event) => onChange({ ...values, previewFile: event.target.files?.[0] ?? null })}
-      />
+      <div className={`file-upload-field${values.previewFile ? " file-upload-field--has-file" : ""}`}>
+        <input
+          key={fileInputKey}
+          className="file-upload-field__input"
+          id="prompt-preview"
+          type="file"
+          accept="image/*"
+          onChange={(event) => onChange({ ...values, previewFile: event.target.files?.[0] ?? null })}
+        />
+        <div className="file-upload-field__surface" aria-hidden="true">
+          <strong className="file-upload-field__title">{previewFieldTitle}</strong>
+          <span className="file-upload-field__meta">{previewFieldMeta}</span>
+        </div>
+      </div>
       {previewHint ? <p className="field-support">{previewHint}</p> : null}
 
       <div className="action-row">

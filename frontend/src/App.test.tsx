@@ -118,14 +118,14 @@ test("renders public landing page on root route", () => {
   expect(screen.getByText("public-landing-page")).toBeInTheDocument();
 });
 
-test("keeps root route as default room capture when access token exists", () => {
+test("keeps root route as public landing even when default room access token exists", () => {
   window.history.pushState({}, "", "/");
   hasRoomAccessTokenMock.mockImplementation((roomSlug: string) => roomSlug === "ph000000");
 
   render(<App />);
 
-  expect(screen.getByText("capture-page")).toBeInTheDocument();
-  expect(screen.queryByText("public-room-menu")).not.toBeInTheDocument();
+  expect(screen.getByText("public-landing-page")).toBeInTheDocument();
+  expect(screen.queryByText("capture-page")).not.toBeInTheDocument();
 });
 
 test("renders public landing page instead of locked room route when access token is missing", () => {
@@ -153,4 +153,13 @@ test("updates rendered route after navigation event", async () => {
   await waitFor(() => {
     expect(screen.getByText("admin-dashboard-page")).toBeInTheDocument();
   });
+});
+
+test("keeps the browser title in russian", () => {
+  document.title = "temporary";
+  window.history.pushState({}, "", "/");
+
+  render(<App />);
+
+  expect(document.title).toBe("ИИ Фоторамка");
 });
