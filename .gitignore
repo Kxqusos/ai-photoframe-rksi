@@ -44,5 +44,6 @@ worktrees/
 
 # uv lock files
 uv.lock
+!backend/uv.lock
 logs/
 docs/
