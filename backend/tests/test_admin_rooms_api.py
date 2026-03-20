@@ -284,6 +284,65 @@ def test_admin_room_prompt_endpoints_are_scoped(monkeypatch) -> None:
     assert deleted.status_code == 204
 
 
+def test_admin_room_prompt_can_be_updated_via_put(monkeypatch) -> None:
+    _reset_db()
+    username, password = _configure_admin_credentials(monkeypatch)
+    client = TestClient(app)
+    token = _get_admin_token(client, username, password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    room = client.post(
+        "/api/admin/rooms",
+        headers=headers,
+        json={
+            "slug": "prmptupd",
+            "name": "Prompt Update Room",
+            "model_name": "openai/gpt-5-image",
+            "is_active": True,
+            "password": "prompt-update-pass",
+        },
+    )
+    assert room.status_code == 201
+    room_id = room.json()["id"]
+
+    created_prompt = client.post(
+        f"/api/admin/rooms/{room_id}/prompts",
+        headers=headers,
+        json={
+            "name": "Original prompt",
+            "description": "Original description",
+            "prompt": "Original body",
+            "preview_image_url": "/media/previews/original.jpg",
+            "icon_image_url": "/media/icons/original.png",
+        },
+    )
+    assert created_prompt.status_code == 201
+    prompt_id = created_prompt.json()["id"]
+
+    updated = client.put(
+        f"/api/admin/rooms/{room_id}/prompts/{prompt_id}",
+        headers=headers,
+        json={
+            "name": "Edited prompt",
+            "description": "Edited description",
+            "prompt": "Edited body",
+            "preview_image_url": "/media/previews/edited.jpg",
+            "icon_image_url": "/media/icons/edited.png",
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["id"] == prompt_id
+    assert updated.json()["name"] == "Edited prompt"
+    assert updated.json()["description"] == "Edited description"
+    assert updated.json()["prompt"] == "Edited body"
+    assert updated.json()["preview_image_url"] == "/media/previews/edited.jpg"
+    assert updated.json()["icon_image_url"] == "/media/icons/edited.png"
+
+    listed = client.get(f"/api/admin/rooms/{room_id}/prompts", headers=headers)
+    assert listed.status_code == 200
+    assert listed.json() == [updated.json()]
+
+
 def test_admin_room_media_uploads_are_room_scoped(monkeypatch, tmp_path: Path) -> None:
     _reset_db()
     username, password = _configure_admin_credentials(monkeypatch)

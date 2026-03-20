@@ -143,6 +143,24 @@ def create_room_prompt(room_id: int, payload: PromptCreate, db: DbSession) -> Pr
     return prompt
 
 
+@router.put("/rooms/{room_id}/prompts/{prompt_id}", response_model=PromptOut)
+def update_room_prompt(room_id: int, prompt_id: int, payload: PromptCreate, db: DbSession) -> Prompt:
+    _get_room_or_404(db, room_id)
+    prompt = db.get(Prompt, prompt_id)
+    if prompt is None or prompt.room_id != room_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="prompt not found")
+
+    prompt.name = payload.name
+    prompt.description = payload.description
+    prompt.prompt = payload.prompt
+    prompt.preview_image_url = payload.preview_image_url
+    prompt.icon_image_url = payload.icon_image_url
+    db.add(prompt)
+    db.commit()
+    db.refresh(prompt)
+    return prompt
+
+
 @router.delete("/rooms/{room_id}/prompts/{prompt_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_room_prompt(room_id: int, prompt_id: int, db: DbSession) -> Response:
     _get_room_or_404(db, room_id)

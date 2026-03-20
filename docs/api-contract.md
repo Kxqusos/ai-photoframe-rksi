@@ -66,6 +66,7 @@ All endpoints below require `Authorization: Bearer <token>`.
 - `PUT /api/admin/rooms/{room_id}/model` with JSON `{ "model_name": "..." }`.
 - `GET /api/admin/rooms/{room_id}/prompts`
 - `POST /api/admin/rooms/{room_id}/prompts`
+- `PUT /api/admin/rooms/{room_id}/prompts/{prompt_id}`
 - `DELETE /api/admin/rooms/{room_id}/prompts/{prompt_id}`
 - `POST /api/admin/rooms/{room_id}/media/prompt-preview` (multipart `file`, image only, size-limited)
 - `POST /api/admin/rooms/{room_id}/media/prompt-icon` (multipart `file`, image only, size-limited)
