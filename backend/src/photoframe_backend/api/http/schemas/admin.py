@@ -41,8 +41,16 @@ class RoomModelUpdate(BaseModel):
     model_name: str
 
 
+class CustomProvider(BaseModel):
+    base_url: str
+    api_key: str
+
+
 class LlmRoutingConfigUpdate(BaseModel):
     vless_uri: str
+    provider_base_url: str = ""
+    provider_api_key: str = ""
+    custom_providers: list[CustomProvider] = []
 
 
 class LlmRoutingToggle(BaseModel):
@@ -53,6 +61,9 @@ class LlmRoutingOut(BaseModel):
     enabled: bool
     status: str
     vless_uri: str
+    provider_base_url: str
+    provider_api_key: str
+    custom_providers: list[CustomProvider]
     last_error: str | None
     last_checked_at: str | None
     last_applied_at: str | None
@@ -63,6 +74,9 @@ class LlmRoutingOut(BaseModel):
             enabled=model.enabled,
             status=model.status,
             vless_uri=model.vless_uri,
+            provider_base_url=model.provider_base_url,
+            provider_api_key=model.provider_api_key,
+            custom_providers=model.custom_providers,
             last_error=model.last_error,
             last_checked_at=model.last_checked_at.isoformat() if model.last_checked_at else None,
             last_applied_at=model.last_applied_at.isoformat() if model.last_applied_at else None,

@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import json
 import os
-from urllib import error, request
 from datetime import UTC, datetime
+from urllib import error, request
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
+from photoframe_backend.infrastructure.clients import openai_compatible_client
 from photoframe_backend.infrastructure.clients.openrouter_client import OPENROUTER_BASE_URL
 from photoframe_backend.infrastructure.db.models import LlmRoutingSetting
-from photoframe_backend.infrastructure.settings.runtime import load_settings
 
 STATUS_DISABLED = "disabled"
 STATUS_TESTING = "testing"
@@ -26,7 +27,15 @@ def _now_utc_naive() -> datetime:
 def get_or_create_llm_routing_setting(db: Session) -> LlmRoutingSetting:
     setting = db.get(LlmRoutingSetting, 1)
     if setting is None:
-        setting = LlmRoutingSetting(id=1, enabled=False, status=STATUS_DISABLED, vless_uri="")
+        setting = LlmRoutingSetting(
+            id=1,
+            enabled=False,
+            status=STATUS_DISABLED,
+            vless_uri="",
+            provider_base_url=OPENROUTER_BASE_URL,
+            provider_api_key="",
+            custom_providers_json="[]",
+        )
         db.add(setting)
         db.commit()
         db.refresh(setting)
@@ -65,15 +74,47 @@ def apply_vless_uri(vless_uri: str) -> tuple[bool, str | None]:
     return False, str(body.get("error") or "xray apply failed")
 
 
-def resolve_active_provider_base_url() -> str:
-    settings = load_settings(allow_test_defaults=True)
-    provider = settings.llm.provider.strip().lower()
-    if provider == "openai_compatible":
-        base_url = settings.openai_compatible.base_url.strip()
-        if not base_url:
-            raise ValueError("OPENAI_COMPATIBLE__BASE_URL is not configured")
-        return base_url.rstrip("/")
-    return OPENROUTER_BASE_URL
+def _looks_like_openrouter(raw_base_url: str) -> bool:
+    candidate = raw_base_url.strip().rstrip("/")
+    if not candidate:
+        return False
+    parsed = urlparse(candidate)
+    return parsed.scheme in {"http", "https"} and parsed.netloc.lower() == "openrouter.ai"
+
+
+def normalize_provider_base_url(raw_base_url: str | None) -> str:
+    candidate = (raw_base_url or "").strip()
+    if not candidate:
+        return OPENROUTER_BASE_URL
+    if _looks_like_openrouter(candidate):
+        return OPENROUTER_BASE_URL
+    return openai_compatible_client._normalize_base_url(candidate)
+
+
+def normalize_custom_providers(raw_custom_providers: list[dict[str, str]] | list[object] | None) -> list[dict[str, str]]:
+    if not raw_custom_providers:
+        return []
+
+    providers_by_url: dict[str, dict[str, str]] = {}
+    for item in raw_custom_providers:
+        if not isinstance(item, dict):
+            continue
+        base_url = normalize_provider_base_url(str(item.get("base_url") or ""))
+        api_key = str(item.get("api_key") or "").strip()
+        if not api_key:
+            continue
+        providers_by_url[base_url] = {"base_url": base_url, "api_key": api_key}
+    return list(providers_by_url.values())
+
+
+def resolve_selected_provider(setting: LlmRoutingSetting) -> tuple[str, str]:
+    provider_base_url = normalize_provider_base_url(setting.provider_base_url)
+    provider_api_key = setting.provider_api_key.strip()
+    if provider_base_url == OPENROUTER_BASE_URL and not provider_api_key:
+        for provider in setting.custom_providers:
+            if provider["base_url"] == provider_base_url and provider["api_key"].strip():
+                return provider_base_url, provider["api_key"].strip()
+    return provider_base_url, provider_api_key
 
 
 def probe_provider_base_url(provider_base_url: str) -> tuple[bool, str | None]:
@@ -114,7 +155,7 @@ def _apply_and_probe(setting: LlmRoutingSetting) -> None:
         _mark_error(setting, apply_error or "failed to apply vless uri")
         return
 
-    provider_base_url = resolve_active_provider_base_url()
+    provider_base_url, _ = resolve_selected_provider(setting)
     probe_ok, probe_error = probe_provider_base_url(provider_base_url)
     if probe_ok:
         _mark_success(setting)
@@ -123,9 +164,19 @@ def _apply_and_probe(setting: LlmRoutingSetting) -> None:
     _mark_error(setting, probe_error or "provider probe failed")
 
 
-def save_vless_uri(db: Session, vless_uri: str) -> LlmRoutingSetting:
+def save_vless_uri(
+    db: Session,
+    vless_uri: str,
+    *,
+    provider_base_url: str,
+    provider_api_key: str,
+    custom_providers: list[dict[str, str]] | list[object] | None,
+) -> LlmRoutingSetting:
     setting = get_or_create_llm_routing_setting(db)
     setting.vless_uri = vless_uri.strip()
+    setting.provider_base_url = normalize_provider_base_url(provider_base_url)
+    setting.provider_api_key = provider_api_key.strip()
+    setting.custom_providers_json = json.dumps(normalize_custom_providers(custom_providers))
     setting.status = STATUS_TESTING
     db.add(setting)
     db.commit()
@@ -180,3 +231,8 @@ def set_routing_enabled(db: Session, enabled: bool) -> LlmRoutingSetting:
 def is_llm_routing_active(db: Session) -> bool:
     setting = get_or_create_llm_routing_setting(db)
     return setting.enabled and setting.status == STATUS_ACTIVE
+
+
+def get_routed_provider(db: Session) -> tuple[str, str]:
+    setting = get_or_create_llm_routing_setting(db)
+    return resolve_selected_provider(setting)

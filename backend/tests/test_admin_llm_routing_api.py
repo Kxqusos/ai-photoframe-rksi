@@ -50,6 +50,9 @@ def test_llm_routing_returns_default_disabled_state(monkeypatch) -> None:
         "enabled": False,
         "status": "disabled",
         "vless_uri": "",
+        "provider_base_url": "https://openrouter.ai/api/v1",
+        "provider_api_key": "",
+        "custom_providers": [],
         "last_error": None,
         "last_checked_at": None,
         "last_applied_at": None,
@@ -75,12 +78,20 @@ def test_llm_routing_saves_vless_uri_and_marks_error_when_apply_or_probe_fails(m
     response = client.put(
         "/api/admin/llm-routing/config",
         headers=headers,
-        json={"vless_uri": "vless://uuid@example.com:443?security=reality&pbk=test&fp=chrome&sni=example.com&type=tcp"},
+        json={
+            "vless_uri": "vless://uuid@example.com:443?security=reality&pbk=test&fp=chrome&sni=example.com&type=tcp",
+            "provider_base_url": "https://embedded.pups-labs.ru/",
+            "provider_api_key": "sk-test-key",
+            "custom_providers": [{"base_url": "https://embedded.pups-labs.ru/", "api_key": "sk-test-key"}],
+        },
     )
     assert response.status_code == 200
     assert response.json()["enabled"] is False
     assert response.json()["status"] == "error"
     assert response.json()["vless_uri"].startswith("vless://uuid@example.com:443")
+    assert response.json()["provider_base_url"] == "https://embedded.pups-labs.ru/v1"
+    assert response.json()["provider_api_key"] == "sk-test-key"
+    assert response.json()["custom_providers"] == [{"base_url": "https://embedded.pups-labs.ru/v1", "api_key": "sk-test-key"}]
     assert response.json()["last_error"] == "probe timeout"
     assert response.json()["last_checked_at"] is not None
     assert response.json()["last_applied_at"] is not None
@@ -105,7 +116,12 @@ def test_llm_routing_can_enable_only_after_successful_apply_and_probe(monkeypatc
     saved = client.put(
         "/api/admin/llm-routing/config",
         headers=headers,
-        json={"vless_uri": "vless://uuid@example.com:443?security=reality&pbk=test&fp=chrome&sni=example.com&type=tcp"},
+        json={
+            "vless_uri": "vless://uuid@example.com:443?security=reality&pbk=test&fp=chrome&sni=example.com&type=tcp",
+            "provider_base_url": "https://embedded.pups-labs.ru/",
+            "provider_api_key": "sk-test-key",
+            "custom_providers": [{"base_url": "https://embedded.pups-labs.ru/", "api_key": "sk-test-key"}],
+        },
     )
     assert saved.status_code == 200
     assert saved.json()["status"] == "disabled"
@@ -121,7 +137,7 @@ def test_llm_routing_can_enable_only_after_successful_apply_and_probe(monkeypatc
     assert enabled.json()["last_error"] is None
 
 
-def test_llm_routing_test_probes_active_provider_base_url(monkeypatch) -> None:
+def test_llm_routing_test_probes_selected_provider_base_url(monkeypatch) -> None:
     _reset_db()
     username, password = _configure_admin_credentials(monkeypatch)
     client = TestClient(app)
@@ -143,11 +159,16 @@ def test_llm_routing_test_probes_active_provider_base_url(monkeypatch) -> None:
     saved = client.put(
         "/api/admin/llm-routing/config",
         headers=headers,
-        json={"vless_uri": "vless://uuid@example.com:443?security=reality&pbk=test&fp=chrome&sni=example.com&type=tcp"},
+        json={
+            "vless_uri": "vless://uuid@example.com:443?security=reality&pbk=test&fp=chrome&sni=example.com&type=tcp",
+            "provider_base_url": "https://embedded.pups-labs.ru/",
+            "provider_api_key": "sk-test-key",
+            "custom_providers": [{"base_url": "https://embedded.pups-labs.ru/", "api_key": "sk-test-key"}],
+        },
     )
     assert saved.status_code == 200
 
     tested = client.post("/api/admin/llm-routing/test", headers=headers)
     assert tested.status_code == 200
-    assert captured["provider_base_url"] == "https://openrouter.ai/api/v1"
+    assert captured["provider_base_url"] == "https://embedded.pups-labs.ru/v1"
     assert tested.json()["status"] == "disabled"

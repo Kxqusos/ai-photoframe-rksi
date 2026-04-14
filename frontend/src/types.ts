@@ -87,7 +87,23 @@ export type LlmRoutingSettings = {
   enabled: boolean;
   status: string;
   vless_uri: string;
+  provider_base_url: string;
+  provider_api_key: string;
+  custom_providers: Array<{
+    base_url: string;
+    api_key: string;
+  }>;
   last_error: string | null;
   last_checked_at: string | null;
   last_applied_at: string | null;
+};
+
+export type LlmRoutingConfigPayload = {
+  vlessUri: string;
+  providerBaseUrl: string;
+  providerApiKey: string;
+  customProviders: Array<{
+    baseUrl: string;
+    apiKey: string;
+  }>;
 };

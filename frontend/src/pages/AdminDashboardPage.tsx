@@ -6,14 +6,80 @@ import { loadAdminToken } from "../lib/auth";
 import { navigateTo } from "../lib/navigation";
 import type { LlmRoutingSettings, Room, RoomCreatePayload, RoomPatchPayload } from "../types";
 
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+type CustomProvider = {
+  baseUrl: string;
+  apiKey: string;
+};
+
 function hasSuccessfulRoutingCheck(routing: LlmRoutingSettings | null): boolean {
   return Boolean(routing?.last_checked_at && !routing?.last_error);
+}
+
+function normalizeProviderBaseUrl(rawValue: string): string {
+  const trimmed = rawValue.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return OPENROUTER_BASE_URL;
+  }
+
+  if (/^https?:\/\/openrouter\.ai(?:\/.*)?$/i.test(trimmed)) {
+    return OPENROUTER_BASE_URL;
+  }
+
+  const parsed = new URL(trimmed);
+  if (parsed.pathname === "" || parsed.pathname === "/") {
+    return `${trimmed}/v1`;
+  }
+  return trimmed;
+}
+
+function normalizeCustomProviders(providers: CustomProvider[]): CustomProvider[] {
+  const providersByUrl = new Map<string, CustomProvider>();
+  providers.forEach((provider) => {
+    const baseUrl = normalizeProviderBaseUrl(provider.baseUrl);
+    const apiKey = provider.apiKey.trim();
+    if (!apiKey) {
+      return;
+    }
+    providersByUrl.set(baseUrl, { baseUrl, apiKey });
+  });
+  return Array.from(providersByUrl.values());
+}
+
+function getProviderApiKey(customProviders: CustomProvider[], providerBaseUrl: string): string {
+  return customProviders.find((provider) => provider.baseUrl === providerBaseUrl)?.apiKey ?? "";
+}
+
+function buildProviderOptions(customProviders: CustomProvider[], selectedProviderBaseUrl: string): string[] {
+  const options = new Set<string>([OPENROUTER_BASE_URL]);
+  customProviders.forEach((provider) => options.add(provider.baseUrl));
+  if (selectedProviderBaseUrl) {
+    options.add(selectedProviderBaseUrl);
+  }
+  return Array.from(options);
+}
+
+function parseProviderDraft(rawValue: string): CustomProvider {
+  const [rawBaseUrl, ...apiKeyParts] = rawValue.trim().split(/\s+/);
+  const apiKey = apiKeyParts.join(" ").trim();
+  if (!rawBaseUrl || !apiKey) {
+    throw new Error("Укажите адрес API и ключ в одном поле через пробел");
+  }
+  return {
+    baseUrl: normalizeProviderBaseUrl(rawBaseUrl),
+    apiKey
+  };
 }
 
 export function AdminDashboardPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [routing, setRouting] = useState<LlmRoutingSettings | null>(null);
   const [routingDraft, setRoutingDraft] = useState("");
+  const [providerBaseUrlDraft, setProviderBaseUrlDraft] = useState(OPENROUTER_BASE_URL);
+  const [providerApiKeyDraft, setProviderApiKeyDraft] = useState("");
+  const [customProvidersDraft, setCustomProvidersDraft] = useState<CustomProvider[]>([]);
+  const [providerEntryDraft, setProviderEntryDraft] = useState("");
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [roomPendingDelete, setRoomPendingDelete] = useState<Room | null>(null);
   const [deletingRoomId, setDeletingRoomId] = useState<number | null>(null);
@@ -26,6 +92,14 @@ export function AdminDashboardPage() {
       setRooms(nextRooms);
       setRouting(nextRouting);
       setRoutingDraft(nextRouting.vless_uri);
+      setProviderBaseUrlDraft(nextRouting.provider_base_url);
+      setProviderApiKeyDraft(nextRouting.provider_api_key);
+      setCustomProvidersDraft(
+        nextRouting.custom_providers.map((provider) => ({
+          baseUrl: provider.base_url,
+          apiKey: provider.api_key
+        }))
+      );
       setError("");
     } catch {
       setError("Не удалось загрузить данные админки");
@@ -99,13 +173,39 @@ export function AdminDashboardPage() {
   async function persistRoutingDraftIfNeeded(): Promise<LlmRoutingSettings | null> {
     const draft = routingDraft.trim();
     const current = routing?.vless_uri.trim() || "";
-    if (!draft || draft === current) {
+    const normalizedProviders = normalizeCustomProviders(customProvidersDraft);
+    const currentProviders = normalizeCustomProviders(
+      (routing?.custom_providers ?? []).map((provider) => ({
+        baseUrl: provider.base_url,
+        apiKey: provider.api_key
+      }))
+    );
+    const nextProviderBaseUrl = normalizeProviderBaseUrl(providerBaseUrlDraft);
+    const hasRoutingChange =
+      draft !== current ||
+      nextProviderBaseUrl !== (routing?.provider_base_url ?? OPENROUTER_BASE_URL) ||
+      providerApiKeyDraft.trim() !== (routing?.provider_api_key ?? "") ||
+      JSON.stringify(normalizedProviders) !== JSON.stringify(currentProviders);
+    if (!draft || !hasRoutingChange) {
       return null;
     }
 
-    const next = await updateLlmRoutingConfig(draft);
+    const next = await updateLlmRoutingConfig({
+      vlessUri: draft,
+      providerBaseUrl: nextProviderBaseUrl,
+      providerApiKey: providerApiKeyDraft.trim(),
+      customProviders: normalizedProviders
+    });
     setRouting(next);
     setRoutingDraft(next.vless_uri);
+    setProviderBaseUrlDraft(next.provider_base_url);
+    setProviderApiKeyDraft(next.provider_api_key);
+    setCustomProvidersDraft(
+      next.custom_providers.map((provider) => ({
+        baseUrl: provider.base_url,
+        apiKey: provider.api_key
+      }))
+    );
     return next;
   }
 
@@ -117,6 +217,14 @@ export function AdminDashboardPage() {
       const next = await testLlmRouting();
       setRouting(next);
       setRoutingDraft(next.vless_uri);
+      setProviderBaseUrlDraft(next.provider_base_url);
+      setProviderApiKeyDraft(next.provider_api_key);
+      setCustomProvidersDraft(
+        next.custom_providers.map((provider) => ({
+          baseUrl: provider.base_url,
+          apiKey: provider.api_key
+        }))
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось проверить llm routing");
     } finally {
@@ -132,12 +240,41 @@ export function AdminDashboardPage() {
       const next = await toggleLlmRouting(enabled);
       setRouting(next);
       setRoutingDraft(next.vless_uri);
+      setProviderBaseUrlDraft(next.provider_base_url);
+      setProviderApiKeyDraft(next.provider_api_key);
+      setCustomProvidersDraft(
+        next.custom_providers.map((provider) => ({
+          baseUrl: provider.base_url,
+          apiKey: provider.api_key
+        }))
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось переключить llm routing");
     } finally {
       setRoutingPending(false);
     }
   }
+
+  function onProviderSelectChange(nextBaseUrl: string) {
+    setProviderBaseUrlDraft(nextBaseUrl);
+    setProviderApiKeyDraft(getProviderApiKey(customProvidersDraft, nextBaseUrl));
+  }
+
+  function onAddProvider(): void {
+    try {
+      const provider = parseProviderDraft(providerEntryDraft);
+      const nextProviders = normalizeCustomProviders([...customProvidersDraft, provider]);
+      setCustomProvidersDraft(nextProviders);
+      setProviderBaseUrlDraft(provider.baseUrl);
+      setProviderApiKeyDraft(provider.apiKey);
+      setProviderEntryDraft("");
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось добавить провайдера");
+    }
+  }
+
+  const providerOptions = buildProviderOptions(customProvidersDraft, providerBaseUrlDraft);
 
   return (
     <main className="page">
@@ -162,6 +299,30 @@ export function AdminDashboardPage() {
             rows={4}
             placeholder="vless://..."
           />
+          <label htmlFor="admin-llm-routing-provider">Provider URL</label>
+          <select
+            id="admin-llm-routing-provider"
+            value={providerBaseUrlDraft}
+            onChange={(event) => onProviderSelectChange(event.target.value)}
+          >
+            {providerOptions.map((providerBaseUrl) => (
+              <option key={providerBaseUrl} value={providerBaseUrl}>
+                {providerBaseUrl}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="admin-llm-routing-provider-entry">Адрес API и ключ</label>
+          <input
+            id="admin-llm-routing-provider-entry"
+            value={providerEntryDraft}
+            onChange={(event) => setProviderEntryDraft(event.target.value)}
+            placeholder="https://openrouter.ai/ sk-or-v1-..."
+          />
+          <div className="action-row">
+            <button type="button" className="button-secondary" onClick={onAddProvider} disabled={routingPending}>
+              Добавить ссылку
+            </button>
+          </div>
           <div className="detail-pills">
             <span className={`routing-status-chip${routing?.enabled ? " routing-status-chip--enabled" : " routing-status-chip--disabled"}`}>
               <span className="routing-status-chip__dot" aria-hidden="true" />

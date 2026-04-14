@@ -251,6 +251,9 @@ describe("admin API client", () => {
           enabled: false,
           status: "error",
           vless_uri: "vless://uuid@example.com:443",
+          provider_base_url: "https://embedded.pups-labs.ru/v1",
+          provider_api_key: "sk-test-key",
+          custom_providers: [{ base_url: "https://embedded.pups-labs.ru/v1", api_key: "sk-test-key" }],
           last_error: "probe timeout",
           last_checked_at: "2026-03-17T12:00:00",
           last_applied_at: "2026-03-17T12:00:00"
@@ -259,7 +262,12 @@ describe("admin API client", () => {
       )
     );
 
-    await updateLlmRoutingConfig("vless://uuid@example.com:443");
+    await updateLlmRoutingConfig({
+      vlessUri: "vless://uuid@example.com:443",
+      providerBaseUrl: "https://embedded.pups-labs.ru/v1",
+      providerApiKey: "sk-test-key",
+      customProviders: [{ baseUrl: "https://embedded.pups-labs.ru/v1", apiKey: "sk-test-key" }]
+    });
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/api/admin/llm-routing/config"),
@@ -269,7 +277,12 @@ describe("admin API client", () => {
           Authorization: "Bearer jwt-token",
           "Content-Type": "application/json"
         }),
-        body: JSON.stringify({ vless_uri: "vless://uuid@example.com:443" })
+        body: JSON.stringify({
+          vless_uri: "vless://uuid@example.com:443",
+          provider_base_url: "https://embedded.pups-labs.ru/v1",
+          provider_api_key: "sk-test-key",
+          custom_providers: [{ base_url: "https://embedded.pups-labs.ru/v1", api_key: "sk-test-key" }]
+        })
       })
     );
   });

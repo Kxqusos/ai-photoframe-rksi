@@ -168,6 +168,8 @@ def list_gallery_results(room_slug: str) -> list[dict[str, Any]]:
 
 
 def create_processing_job(db: Session, *, prompt_id: int, room_id: int, source_bytes: bytes) -> GenerationJob:
+    route_via_proxy = llm_routing.is_llm_routing_active(db)
+    provider_base_url, provider_api_key = llm_routing.get_routed_provider(db) if route_via_proxy else ("", "")
     service = JobService(
         room_service=RoomService(
             SqlAlchemyRoomRepository(db),
@@ -181,7 +183,9 @@ def create_processing_job(db: Session, *, prompt_id: int, room_id: int, source_b
             model=model,
             prompt=prompt,
             image_bytes=image_bytes,
-            route_via_proxy=llm_routing.is_llm_routing_active(db),
+            route_via_proxy=route_via_proxy,
+            provider_base_url=provider_base_url,
+            provider_api_key=provider_api_key,
         ),
         build_room_result_dir=_build_room_result_dir,
         build_filename=_build_filename,
@@ -212,6 +216,8 @@ def _resolve_model_name_for_room(room: Room) -> str:
 
 
 def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
+    route_via_proxy = llm_routing.is_llm_routing_active(db)
+    provider_base_url, provider_api_key = llm_routing.get_routed_provider(db) if route_via_proxy else ("", "")
     service = JobService(
         room_service=RoomService(
             SqlAlchemyRoomRepository(db),
@@ -225,7 +231,9 @@ def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
             model=_normalize_model_name(model),
             prompt=prompt,
             image_bytes=image_bytes,
-            route_via_proxy=llm_routing.is_llm_routing_active(db),
+            route_via_proxy=route_via_proxy,
+            provider_base_url=provider_base_url,
+            provider_api_key=provider_api_key,
         ),
         build_room_result_dir=_build_room_result_dir,
         build_filename=_build_filename,

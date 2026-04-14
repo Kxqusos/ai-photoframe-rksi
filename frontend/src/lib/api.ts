@@ -6,6 +6,7 @@ import type {
   MediaUploadResponse,
   PublicRoom,
   PromptCreate,
+  LlmRoutingConfigPayload,
   RoomAccessToken,
   RoomCreatePayload,
   RoomPatchPayload,
@@ -222,11 +223,19 @@ export async function getLlmRouting(): Promise<LlmRoutingSettings> {
   return (await response.json()) as LlmRoutingSettings;
 }
 
-export async function updateLlmRoutingConfig(vlessUri: string): Promise<LlmRoutingSettings> {
+export async function updateLlmRoutingConfig(payload: LlmRoutingConfigPayload): Promise<LlmRoutingSettings> {
   const response = await fetch(`${API_BASE}/api/admin/llm-routing/config`, {
     method: "PUT",
     headers: requireAdminHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ vless_uri: vlessUri })
+    body: JSON.stringify({
+      vless_uri: payload.vlessUri,
+      provider_base_url: payload.providerBaseUrl,
+      provider_api_key: payload.providerApiKey,
+      custom_providers: payload.customProviders.map((provider) => ({
+        base_url: provider.baseUrl,
+        api_key: provider.apiKey
+      }))
+    })
   });
   if (!response.ok) {
     throw new Error("Failed to update llm routing settings");

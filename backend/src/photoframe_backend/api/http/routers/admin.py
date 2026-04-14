@@ -193,7 +193,13 @@ def get_llm_routing(db: DbSession) -> LlmRoutingOut:
 
 @router.put("/llm-routing/config", response_model=LlmRoutingOut)
 def update_llm_routing_config(payload: LlmRoutingConfigUpdate, db: DbSession) -> LlmRoutingOut:
-    setting = llm_routing.save_vless_uri(db, payload.vless_uri)
+    setting = llm_routing.save_vless_uri(
+        db,
+        payload.vless_uri,
+        provider_base_url=payload.provider_base_url,
+        provider_api_key=payload.provider_api_key,
+        custom_providers=[provider.model_dump() for provider in payload.custom_providers],
+    )
     return LlmRoutingOut.from_model(setting)
 
 
