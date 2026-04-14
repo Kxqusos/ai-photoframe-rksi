@@ -1,6 +1,6 @@
 """extend llm routing settings with provider credentials
 
-Revision ID: 20260414_01_llm_routing_providers
+Revision ID: 20260414_01_llm_route_providers
 Revises: 20260317_01_routing_setting
 Create Date: 2026-04-14
 """
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "20260414_01_llm_routing_providers"
+revision: str = "20260414_01_llm_route_providers"
 down_revision: str | None = "20260317_01_routing_setting"
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
