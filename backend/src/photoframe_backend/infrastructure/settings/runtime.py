@@ -8,16 +8,12 @@ from photoframe_backend.shared.constants import DEFAULT_ADMIN_PASSWORD, DEFAULT_
 
 LEGACY_TO_GROUPED_ENV = {
     "APP_NAME": "APP__NAME",
-    "LLM_PROVIDER": "LLM__PROVIDER",
     "JWT_SECRET": "AUTH__JWT_SECRET",
     "JWT_EXPIRE_MINUTES": "AUTH__JWT_EXPIRE_MINUTES",
     "ADMIN_USERNAME": "AUTH__ADMIN_USERNAME",
     "ADMIN_PASSWORD": "AUTH__ADMIN_PASSWORD",
     "LOG_FILE_PATH": "LOG__FILE_PATH",
     "LOG_LEVEL": "LOG__LEVEL",
-    "OPENAI_COMPATIBLE_BASE_URL": "OPENAI_COMPATIBLE__BASE_URL",
-    "OPENAI_COMPATIBLE_API_KEY": "OPENAI_COMPATIBLE__API_KEY",
-    "OPENROUTER_API_KEY": "OPENROUTER__API_KEY",
     "OPENROUTER_HTTP_REFERER": "OPENROUTER__HTTP_REFERER",
     "OPENROUTER_X_TITLE": "OPENROUTER__X_TITLE",
     "OPENROUTER_PROVIDER_SORT": "OPENROUTER__PROVIDER_SORT",
@@ -78,16 +74,12 @@ def _hydrate_grouped_env_from_legacy(file_keys: set[str]) -> list[str]:
 def _hydrate_legacy_env(settings: RuntimeSettings) -> None:
     legacy_pairs = {
         "APP_NAME": settings.app_name,
-        "LLM_PROVIDER": settings.llm.provider,
         "JWT_SECRET": settings.jwt_secret,
         "JWT_EXPIRE_MINUTES": str(settings.jwt_expire_minutes),
         "ADMIN_USERNAME": settings.admin_username,
         "ADMIN_PASSWORD": settings.admin_password,
         "LOG_FILE_PATH": str(settings.log_file_path),
         "LOG_LEVEL": settings.log.level,
-        "OPENAI_COMPATIBLE_BASE_URL": settings.openai_compatible.base_url,
-        "OPENAI_COMPATIBLE_API_KEY": settings.openai_compatible.api_key,
-        "OPENROUTER_API_KEY": settings.openrouter.api_key,
         "OPENROUTER_HTTP_REFERER": settings.openrouter.http_referer,
         "OPENROUTER_X_TITLE": settings.openrouter.x_title,
         "OPENROUTER_PROVIDER_SORT": settings.openrouter.provider_sort,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from photoframe_backend.shared.constants import (
@@ -64,23 +64,7 @@ class LogSettings(BaseModel):
     file_path: str = str(DEFAULT_LOG_FILE_PATH.relative_to(BACKEND_DIR))
 
 
-class LlmSettings(BaseModel):
-    provider: str = "openrouter"
-
-    @field_validator("provider", mode="before")
-    @classmethod
-    def _normalize_provider(cls, value: str | None) -> str:
-        normalized = (value or "openrouter").strip().lower()
-        return normalized or "openrouter"
-
-
-class OpenAICompatibleSettings(BaseModel):
-    base_url: str = ""
-    api_key: str = ""
-
-
 class OpenRouterSettings(BaseModel):
-    api_key: str = ""
     http_referer: str = DEFAULT_OPENROUTER_HTTP_REFERER
     x_title: str = DEFAULT_OPENROUTER_X_TITLE
     provider_sort: str = DEFAULT_OPENROUTER_PROVIDER_SORT
@@ -107,8 +91,6 @@ class RuntimeSettings(BaseSettings):
     auth: AuthSettings = Field(default_factory=AuthSettings)
     db: DatabaseSettings = Field(default_factory=DatabaseSettings)
     log: LogSettings = Field(default_factory=LogSettings)
-    llm: LlmSettings = Field(default_factory=LlmSettings)
-    openai_compatible: OpenAICompatibleSettings = Field(default_factory=OpenAICompatibleSettings)
     openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
 

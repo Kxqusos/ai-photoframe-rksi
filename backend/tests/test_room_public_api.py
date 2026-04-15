@@ -190,6 +190,43 @@ def test_room_hash_endpoint_enforces_room_ownership() -> None:
     assert response.status_code == 404
 
 
+def test_room_hash_websocket_streams_status_updates_for_room_job(monkeypatch) -> None:
+    _reset_db()
+    ids = _seed_rooms_and_prompts()
+    client = TestClient(app)
+    token = _get_room_access_token(client, "aaaaaaaa", "room-a-pass")
+    monkeypatch.setattr("photoframe_backend.api.http.routers.jobs._JOB_STATUS_WS_POLL_SECONDS", 0.01)
+
+    with SessionLocal() as db:
+        job = GenerationJob(
+            prompt_id=ids["prompt_a_id"],
+            room_id=ids["room_a_id"],
+            status="processing",
+            qr_hash="strm0001",
+            result_path=None,
+        )
+        db.add(job)
+        db.commit()
+
+    with client.websocket_connect(f"/api/rooms/aaaaaaaa/jobs/hash/strm0001/ws?room_access_token={token}") as websocket:
+        first = websocket.receive_json()
+        assert first["id"] == "strm0001"
+        assert first["status"] == "processing"
+
+        with SessionLocal() as db:
+            job = db.query(GenerationJob).filter(GenerationJob.qr_hash == "strm0001").first()
+            assert job is not None
+            job.status = "completed"
+            job.result_path = "/tmp/strm0001.jpg"
+            db.add(job)
+            db.commit()
+
+        second = websocket.receive_json()
+        assert second["id"] == "strm0001"
+        assert second["status"] == "completed"
+        assert second["download_url"] == "/qr/strm0001"
+
+
 def test_room_job_status_by_id_returns_room_scoped_status() -> None:
     _reset_db()
     ids = _seed_rooms_and_prompts()

@@ -310,7 +310,7 @@ def _transform_output_image(image_bytes: bytes) -> bytes:
 
 
 def generate_image(*, model: str, prompt: str, image_bytes: bytes, base_url: str | None = None, api_key: str | None = None) -> bytes:
-    resolved_api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+    resolved_api_key = api_key if api_key is not None else os.getenv("OPENROUTER_API_KEY")
     if not resolved_api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not configured")
 

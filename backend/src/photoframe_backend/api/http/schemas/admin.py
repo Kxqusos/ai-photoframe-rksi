@@ -48,6 +48,9 @@ class CustomProvider(BaseModel):
 
 class LlmRoutingConfigUpdate(BaseModel):
     vless_uri: str
+
+
+class LlmProviderConfigUpdate(BaseModel):
     provider_base_url: str = ""
     provider_api_key: str = ""
     custom_providers: list[CustomProvider] = []
@@ -99,6 +102,7 @@ class PromptOut(PromptCreate):
 
 __all__ = [
     "LlmRoutingConfigUpdate",
+    "LlmProviderConfigUpdate",
     "LlmRoutingOut",
     "LlmRoutingToggle",
     "PromptCreate",

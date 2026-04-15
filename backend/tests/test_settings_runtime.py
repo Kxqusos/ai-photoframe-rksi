@@ -12,9 +12,6 @@ def clear_settings_env(monkeypatch) -> None:
         "APP__NAME",
         "APP__ENV",
         "APP__DEFAULT_PUBLIC_ROOM_SLUG",
-        "LLM__PROVIDER",
-        "OPENAI_COMPATIBLE__BASE_URL",
-        "OPENAI_COMPATIBLE__API_KEY",
         "AUTH__JWT_SECRET",
         "AUTH__JWT_EXPIRE_MINUTES",
         "AUTH__ADMIN_USERNAME",
@@ -27,7 +24,6 @@ def clear_settings_env(monkeypatch) -> None:
         "DB__ECHO",
         "LOG__FILE_PATH",
         "LOG__LEVEL",
-        "OPENROUTER__API_KEY",
         "OPENROUTER__HTTP_REFERER",
         "OPENROUTER__X_TITLE",
         "OPENROUTER__PROVIDER_SORT",
@@ -46,10 +42,6 @@ def clear_settings_env(monkeypatch) -> None:
         "ADMIN_PASSWORD",
         "LOG_FILE_PATH",
         "LOG_LEVEL",
-        "LLM_PROVIDER",
-        "OPENAI_COMPATIBLE_BASE_URL",
-        "OPENAI_COMPATIBLE_API_KEY",
-        "OPENROUTER_API_KEY",
         "OPENROUTER_HTTP_REFERER",
         "OPENROUTER_X_TITLE",
         "OPENROUTER_PROVIDER_SORT",
@@ -80,7 +72,6 @@ def test_load_settings_reads_grouped_values_from_env_file(tmp_path: Path, monkey
                 "DB__HOST=postgres.internal",
                 "DB__PORT=5433",
                 "DB__NAME=photoframe_dev",
-                "OPENROUTER__API_KEY=file-key",
                 "STORAGE__RESULT_RETENTION_DAYS=14",
             ]
         )
@@ -97,7 +88,6 @@ def test_load_settings_reads_grouped_values_from_env_file(tmp_path: Path, monkey
         "DB__HOST",
         "DB__PORT",
         "DB__NAME",
-        "OPENROUTER__API_KEY",
         "STORAGE__RESULT_RETENTION_DAYS",
     ]:
         monkeypatch.delenv(key, raising=False)
@@ -111,7 +101,6 @@ def test_load_settings_reads_grouped_values_from_env_file(tmp_path: Path, monkey
     assert settings.db.host == "postgres.internal"
     assert settings.db.port == 5433
     assert settings.db.name == "photoframe_dev"
-    assert settings.openrouter.api_key == "file-key"
     assert settings.storage.result_retention_days == 14
 
 
@@ -200,7 +189,7 @@ def test_legacy_process_env_overrides_grouped_file_values(tmp_path: Path, monkey
     assert settings.log.level == "DEBUG"
 
 
-def test_load_settings_reads_openai_compatible_provider_from_env_file(tmp_path: Path, monkeypatch) -> None:
+def test_load_settings_ignores_removed_provider_key_envs(tmp_path: Path, monkeypatch) -> None:
     env_path = tmp_path / ".env"
     env_path.write_text(
         "\n".join(
@@ -208,9 +197,9 @@ def test_load_settings_reads_openai_compatible_provider_from_env_file(tmp_path: 
                 "APP__ENV=development",
                 "AUTH__JWT_SECRET=super-secret",
                 "AUTH__ADMIN_PASSWORD=super-admin",
-                "LLM__PROVIDER=openai_compatible",
                 "OPENAI_COMPATIBLE__BASE_URL=https://embedded.pups-labs.ru/",
                 "OPENAI_COMPATIBLE__API_KEY=compatible-file-key",
+                "OPENROUTER__API_KEY=openrouter-file-key",
             ]
         )
         + "\n",
@@ -221,29 +210,17 @@ def test_load_settings_reads_openai_compatible_provider_from_env_file(tmp_path: 
         "APP__ENV",
         "AUTH__JWT_SECRET",
         "AUTH__ADMIN_PASSWORD",
-        "LLM__PROVIDER",
         "OPENAI_COMPATIBLE__BASE_URL",
         "OPENAI_COMPATIBLE__API_KEY",
-        "LLM_PROVIDER",
-        "OPENAI_COMPATIBLE_BASE_URL",
-        "OPENAI_COMPATIBLE_API_KEY",
+        "OPENROUTER__API_KEY",
     ]:
         monkeypatch.delenv(key, raising=False)
 
     settings = load_settings(env_path=env_path, allow_test_defaults=False)
 
-    assert settings.llm.provider == "openai_compatible"
-    assert settings.openai_compatible.base_url == "https://embedded.pups-labs.ru/"
-    assert settings.openai_compatible.api_key == "compatible-file-key"
-    assert os.getenv("LLM_PROVIDER") == "openai_compatible"
-    assert os.getenv("OPENAI_COMPATIBLE_BASE_URL") == "https://embedded.pups-labs.ru/"
-    assert os.getenv("OPENAI_COMPATIBLE_API_KEY") == "compatible-file-key"
-
-
-def test_load_settings_defaults_llm_provider_to_openrouter(monkeypatch) -> None:
-    monkeypatch.setenv("AUTH__JWT_SECRET", "super-secret")
-    monkeypatch.setenv("AUTH__ADMIN_PASSWORD", "super-admin")
-
-    settings = load_settings(allow_test_defaults=False)
-
-    assert settings.llm.provider == "openrouter"
+    assert settings.app.env == "development"
+    assert not hasattr(settings, "llm")
+    assert not hasattr(settings, "openai_compatible")
+    assert "OPENAI_COMPATIBLE_BASE_URL" not in os.environ
+    assert "OPENAI_COMPATIBLE_API_KEY" not in os.environ
+    assert "OPENROUTER_API_KEY" not in os.environ

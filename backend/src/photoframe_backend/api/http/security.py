@@ -95,6 +95,14 @@ def decode_room_access_token(token: str) -> dict:
     return payload
 
 
+def validate_room_access_token(room_slug: str, room_access_token: str) -> str:
+    payload = decode_room_access_token(room_access_token)
+    subject = payload.get("sub")
+    if not isinstance(subject, str) or not hmac.compare_digest(subject, room_slug):
+        raise ValueError("invalid room access token")
+    return subject
+
+
 def require_room_access(
     room_slug: str,
     x_room_access_token: str | None = Header(default=None, alias="X-Room-Access-Token"),
@@ -103,14 +111,9 @@ def require_room_access(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="room access token required")
 
     try:
-        payload = decode_room_access_token(x_room_access_token)
+        return validate_room_access_token(room_slug, x_room_access_token)
     except (jwt.PyJWTError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid room access token") from exc
-
-    subject = payload.get("sub")
-    if not isinstance(subject, str) or not hmac.compare_digest(subject, room_slug):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid room access token")
-    return subject
 
 
 def require_admin(authorization: str | None = Header(default=None)) -> str:

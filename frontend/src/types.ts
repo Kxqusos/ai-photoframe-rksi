@@ -100,6 +100,9 @@ export type LlmRoutingSettings = {
 
 export type LlmRoutingConfigPayload = {
   vlessUri: string;
+};
+
+export type LlmProviderConfigPayload = {
   providerBaseUrl: string;
   providerApiKey: string;
   customProviders: Array<{

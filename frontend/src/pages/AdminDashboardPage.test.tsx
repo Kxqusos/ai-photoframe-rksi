@@ -11,6 +11,7 @@ const patchRoomMock = vi.fn();
 const deleteRoomMock = vi.fn();
 const getLlmRoutingMock = vi.fn();
 const updateLlmRoutingConfigMock = vi.fn();
+const updateLlmProviderConfigMock = vi.fn();
 const testLlmRoutingMock = vi.fn();
 const toggleLlmRoutingMock = vi.fn();
 
@@ -24,7 +25,8 @@ vi.mock("../lib/api", () => ({
   patchRoom: (roomId: number, payload: unknown) => patchRoomMock(roomId, payload),
   deleteRoom: (roomId: number) => deleteRoomMock(roomId),
   getLlmRouting: () => getLlmRoutingMock(),
-  updateLlmRoutingConfig: (vlessUri: string) => updateLlmRoutingConfigMock(vlessUri),
+  updateLlmRoutingConfig: (payload: unknown) => updateLlmRoutingConfigMock(payload),
+  updateLlmProviderConfig: (payload: unknown) => updateLlmProviderConfigMock(payload),
   testLlmRouting: () => testLlmRoutingMock(),
   toggleLlmRouting: (enabled: boolean) => toggleLlmRoutingMock(enabled)
 }));
@@ -37,6 +39,7 @@ beforeEach(() => {
   deleteRoomMock.mockReset();
   getLlmRoutingMock.mockReset();
   updateLlmRoutingConfigMock.mockReset();
+  updateLlmProviderConfigMock.mockReset();
   testLlmRoutingMock.mockReset();
   toggleLlmRoutingMock.mockReset();
   getLlmRoutingMock.mockResolvedValue({
@@ -264,12 +267,7 @@ test("loads llm routing card, shows explicit russian statuses, and saves the cur
   fireEvent.change(screen.getByLabelText(/vless url/i), { target: { value: "vless://uuid@example.com:443" } });
   fireEvent.click(screen.getByRole("button", { name: /проверить подключение/i }));
   await waitFor(() => {
-    expect(updateLlmRoutingConfigMock).toHaveBeenCalledWith({
-      vlessUri: "vless://uuid@example.com:443",
-      providerBaseUrl: "https://openrouter.ai/api/v1",
-      providerApiKey: "",
-      customProviders: []
-    });
+    expect(updateLlmRoutingConfigMock).toHaveBeenCalledWith({ vlessUri: "vless://uuid@example.com:443" });
     expect(testLlmRoutingMock).toHaveBeenCalled();
     expect(screen.queryByText(/статус подключения:/i)).not.toBeInTheDocument();
     expect(screen.getByText(/ключ vless проверен/i)).toBeInTheDocument();
@@ -308,7 +306,8 @@ test("groups routing controls into a dedicated stack so the status card spacing 
 
   expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
 
-  const routingStack = container.querySelector(".routing-stack");
+  const routingSection = screen.getByRole("region", { name: /llm routing/i });
+  const routingStack = routingSection.querySelector(".routing-stack");
   expect(routingStack).not.toBeNull();
   expect(routingStack).toContainElement(screen.getByLabelText(/vless url/i));
   expect(routingStack).toContainElement(screen.getByText(/маршрутизация/i).closest(".routing-status-chip"));
@@ -317,55 +316,44 @@ test("groups routing controls into a dedicated stack so the status card spacing 
   expect(routingStack).toContainElement(screen.getByRole("button", { name: /проверить подключение/i }));
 });
 
-test("allows adding a custom provider from one field with url and api key, then saves it as the selected routing target", async () => {
+test("saves provider config in a separate block with base url and api key fields", async () => {
   loadAdminTokenMock.mockReturnValue("jwt-token");
   listRoomsMock.mockResolvedValue([{ id: 1, slug: "aaaaaaaa", name: "Room A", model_name: "m", is_active: true }]);
-  updateLlmRoutingConfigMock.mockResolvedValue({
+  updateLlmProviderConfigMock.mockResolvedValue({
     enabled: false,
     status: "disabled",
-    vless_uri: "vless://uuid@example.com:443",
+    vless_uri: "",
     provider_base_url: "https://embedded.pups-labs.ru/v1",
     provider_api_key: "sk-test-key",
     custom_providers: [{ base_url: "https://embedded.pups-labs.ru/v1", api_key: "sk-test-key" }],
     last_error: null,
-    last_checked_at: "2026-03-17T12:00:00",
-    last_applied_at: "2026-03-17T12:00:00"
-  });
-  testLlmRoutingMock.mockResolvedValue({
-    enabled: false,
-    status: "disabled",
-    vless_uri: "vless://uuid@example.com:443",
-    provider_base_url: "https://embedded.pups-labs.ru/v1",
-    provider_api_key: "sk-test-key",
-    custom_providers: [{ base_url: "https://embedded.pups-labs.ru/v1", api_key: "sk-test-key" }],
-    last_error: null,
-    last_checked_at: "2026-03-17T12:01:00",
-    last_applied_at: "2026-03-17T12:01:00"
+    last_checked_at: null,
+    last_applied_at: null
   });
 
   render(<AdminDashboardPage />);
 
   expect(await screen.findByRole("heading", { name: /room a/i })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /llm provider/i })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /llm routing/i })).toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText(/vless url/i), { target: { value: "vless://uuid@example.com:443" } });
-  fireEvent.change(screen.getByLabelText(/адрес api и ключ/i), {
-    target: { value: "https://embedded.pups-labs.ru/ sk-test-key" }
-  });
-  fireEvent.click(screen.getByRole("button", { name: /добавить ссылку/i }));
+  fireEvent.change(screen.getByLabelText(/^base url$/i), { target: { value: "https://embedded.pups-labs.ru/" } });
+  fireEvent.change(screen.getByLabelText(/^api key$/i), { target: { value: "sk-test-key" } });
+  fireEvent.click(screen.getByRole("button", { name: /сохранить провайдера/i }));
 
   const providerSelect = screen.getByLabelText(/provider url/i);
-  expect(screen.getByRole("option", { name: "https://embedded.pups-labs.ru/v1" })).toBeInTheDocument();
-  expect(providerSelect).toHaveValue("https://embedded.pups-labs.ru/v1");
-
-  fireEvent.click(screen.getByRole("button", { name: /проверить подключение/i }));
-
   await waitFor(() => {
-    expect(updateLlmRoutingConfigMock).toHaveBeenCalledWith({
-      vlessUri: "vless://uuid@example.com:443",
+    expect(updateLlmProviderConfigMock).toHaveBeenCalledWith({
       providerBaseUrl: "https://embedded.pups-labs.ru/v1",
       providerApiKey: "sk-test-key",
       customProviders: [{ baseUrl: "https://embedded.pups-labs.ru/v1", apiKey: "sk-test-key" }]
     });
-    expect(testLlmRoutingMock).toHaveBeenCalled();
   });
+
+  expect(screen.getByRole("option", { name: "https://embedded.pups-labs.ru/v1" })).toBeInTheDocument();
+  expect(providerSelect).toHaveValue("https://embedded.pups-labs.ru/v1");
+  expect(screen.getByLabelText(/^base url$/i)).toHaveValue("https://embedded.pups-labs.ru/v1");
+  expect(screen.getByLabelText(/^api key$/i)).toHaveValue("sk-test-key");
+  expect(updateLlmRoutingConfigMock).not.toHaveBeenCalled();
+  expect(testLlmRoutingMock).not.toHaveBeenCalled();
 });

@@ -57,20 +57,21 @@ def test_root_compose_runs_backend_without_reload_reloader() -> None:
 def test_root_compose_uses_backend_dotenv_as_primary_backend_env_source() -> None:
     root_compose = _read("docker-compose.yml")
 
+    assert "path: deploy/env/backend.env.example" in root_compose
     assert "path: backend/.env" in root_compose
     assert 'APP__ENV: docker' not in root_compose
     assert 'APP__NAME: AI Photoframe API' not in root_compose
-    assert 'DB__HOST: postgres' not in root_compose
-    assert 'DB__PORT: "5432"' not in root_compose
-    assert 'DB__NAME: photoframe' not in root_compose
-    assert 'DB__USER: photoframe' not in root_compose
-    assert 'DB__PASSWORD: photoframe' not in root_compose
     assert 'AUTH__ADMIN_USERNAME: admin' not in root_compose
 
 
 def test_root_compose_keeps_only_runtime_container_wiring_in_backend_environment_block() -> None:
     root_compose = _read("docker-compose.yml")
 
+    assert 'DB__HOST: postgres' in root_compose
+    assert 'DB__PORT: "5432"' in root_compose
+    assert 'DB__NAME: photoframe' in root_compose
+    assert 'DB__USER: photoframe' in root_compose
+    assert 'DB__PASSWORD: photoframe' in root_compose
     assert 'ROUTING_LLM_EGRESS_URL: http://llm-egress:8080' in root_compose
     assert 'ROUTING_XRAY_CLIENT_URL: http://xray-client:8081' in root_compose
     assert 'BACKEND_RELOAD: "false"' in root_compose

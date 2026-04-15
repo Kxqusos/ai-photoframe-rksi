@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { getRoomJobStatus } from "../lib/api";
+import { connectRoomJobStatusSocket } from "../lib/api";
 import { buildPublicRoomPath, normalizeResultHash, normalizeRoomSlug } from "../lib/roomRouting";
 import type { JobStatus } from "../types";
 
@@ -52,34 +52,42 @@ export function ResultPage({ roomSlug, jpgHash: providedJpgHash }: Props) {
 
     let cancelled = false;
     let settled = false;
-    let timer = 0;
+    let socket: WebSocket | null = null;
 
-    async function poll() {
+    try {
+      socket = connectRoomJobStatusSocket(resolvedRoomSlug, jpgHash);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось подключиться к обновлениям статуса");
+      return;
+    }
+
+    socket.onmessage = (event) => {
+      if (cancelled || settled) {
+        return;
+      }
       try {
-        const status = await getRoomJobStatus(resolvedRoomSlug, jpgHash);
-        if (cancelled || settled) {
-          return;
-        }
+        const status = JSON.parse(event.data) as JobStatus;
         setError("");
         setJob(status);
         if (isTerminalJobStatus(status)) {
           settled = true;
-          window.clearInterval(timer);
+          socket?.close();
         }
-      } catch (cause) {
-        if (cancelled || settled) {
-          return;
-        }
-        setError(cause instanceof Error ? cause.message : "Не удалось получить статус генерации");
+      } catch {
+        setError("Не удалось обработать обновление статуса");
       }
-    }
+    };
 
-    poll();
-    timer = window.setInterval(poll, 1500);
+    socket.onerror = () => {
+      if (cancelled || settled) {
+        return;
+      }
+      setError("Не удалось подключиться к обновлениям статуса");
+    };
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      socket?.close();
     };
   }, [jpgHash, resolvedRoomSlug]);
 

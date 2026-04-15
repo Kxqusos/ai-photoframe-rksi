@@ -44,6 +44,7 @@ app.include_router(prompts.room_router)
 app.include_router(media.router)
 app.include_router(jobs.router)
 app.include_router(jobs.room_router)
+app.include_router(jobs.websocket_room_router)
 app.include_router(jobs.public_router)
 app.mount(
     "/media",

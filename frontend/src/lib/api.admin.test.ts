@@ -5,6 +5,7 @@ import {
   getLlmRouting,
   testLlmRouting,
   toggleLlmRouting,
+  updateLlmProviderConfig,
   updateLlmRoutingConfig,
   deleteRoom,
   createRoomJob,
@@ -263,10 +264,7 @@ describe("admin API client", () => {
     );
 
     await updateLlmRoutingConfig({
-      vlessUri: "vless://uuid@example.com:443",
-      providerBaseUrl: "https://embedded.pups-labs.ru/v1",
-      providerApiKey: "sk-test-key",
-      customProviders: [{ baseUrl: "https://embedded.pups-labs.ru/v1", apiKey: "sk-test-key" }]
+      vlessUri: "vless://uuid@example.com:443"
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -278,7 +276,46 @@ describe("admin API client", () => {
           "Content-Type": "application/json"
         }),
         body: JSON.stringify({
-          vless_uri: "vless://uuid@example.com:443",
+          vless_uri: "vless://uuid@example.com:443"
+        })
+      })
+    );
+  });
+
+  test("updates llm provider config via protected admin endpoint", async () => {
+    saveAdminToken("jwt-token");
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          enabled: false,
+          status: "disabled",
+          vless_uri: "",
+          provider_base_url: "https://embedded.pups-labs.ru/v1",
+          provider_api_key: "sk-test-key",
+          custom_providers: [{ base_url: "https://embedded.pups-labs.ru/v1", api_key: "sk-test-key" }],
+          last_error: null,
+          last_checked_at: null,
+          last_applied_at: null
+        }),
+        { status: 200 }
+      )
+    );
+
+    await updateLlmProviderConfig({
+      providerBaseUrl: "https://embedded.pups-labs.ru/v1",
+      providerApiKey: "sk-test-key",
+      customProviders: [{ baseUrl: "https://embedded.pups-labs.ru/v1", apiKey: "sk-test-key" }]
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/admin/llm-routing/provider"),
+      expect.objectContaining({
+        method: "PUT",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-token",
+          "Content-Type": "application/json"
+        }),
+        body: JSON.stringify({
           provider_base_url: "https://embedded.pups-labs.ru/v1",
           provider_api_key: "sk-test-key",
           custom_providers: [{ base_url: "https://embedded.pups-labs.ru/v1", api_key: "sk-test-key" }]

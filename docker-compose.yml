@@ -31,9 +31,16 @@ services:
       xray-client:
         condition: service_started
     env_file:
-      - path: backend/.env
+      - path: deploy/env/backend.env.example
         required: false
+      - path: backend/.env
+        required: true
     environment:
+      DB__HOST: postgres
+      DB__PORT: "5432"
+      DB__NAME: photoframe
+      DB__USER: photoframe
+      DB__PASSWORD: photoframe
       ROUTING_LLM_EGRESS_URL: http://llm-egress:8080
       ROUTING_XRAY_CLIENT_URL: http://xray-client:8081
       BACKEND_RELOAD: "false"

@@ -169,7 +169,7 @@ def list_gallery_results(room_slug: str) -> list[dict[str, Any]]:
 
 def create_processing_job(db: Session, *, prompt_id: int, room_id: int, source_bytes: bytes) -> GenerationJob:
     route_via_proxy = llm_routing.is_llm_routing_active(db)
-    provider_base_url, provider_api_key = llm_routing.get_routed_provider(db) if route_via_proxy else ("", "")
+    provider_base_url, provider_api_key = llm_routing.get_routed_provider(db)
     service = JobService(
         room_service=RoomService(
             SqlAlchemyRoomRepository(db),
@@ -217,7 +217,7 @@ def _resolve_model_name_for_room(room: Room) -> str:
 
 def run_generation_sync(db: Session, job_id: int) -> GenerationJob:
     route_via_proxy = llm_routing.is_llm_routing_active(db)
-    provider_base_url, provider_api_key = llm_routing.get_routed_provider(db) if route_via_proxy else ("", "")
+    provider_base_url, provider_api_key = llm_routing.get_routed_provider(db)
     service = JobService(
         room_service=RoomService(
             SqlAlchemyRoomRepository(db),

@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
 
 import { AdminRoomForm } from "../components/AdminRoomForm";
-import { createRoom, deleteRoom, getLlmRouting, listRooms, patchRoom, testLlmRouting, toggleLlmRouting, updateLlmRoutingConfig } from "../lib/api";
+import {
+  createRoom,
+  deleteRoom,
+  getLlmRouting,
+  listRooms,
+  patchRoom,
+  testLlmRouting,
+  toggleLlmRouting,
+  updateLlmProviderConfig,
+  updateLlmRoutingConfig
+} from "../lib/api";
 import { loadAdminToken } from "../lib/auth";
 import { navigateTo } from "../lib/navigation";
 import type { LlmRoutingSettings, Room, RoomCreatePayload, RoomPatchPayload } from "../types";
@@ -60,18 +70,6 @@ function buildProviderOptions(customProviders: CustomProvider[], selectedProvide
   return Array.from(options);
 }
 
-function parseProviderDraft(rawValue: string): CustomProvider {
-  const [rawBaseUrl, ...apiKeyParts] = rawValue.trim().split(/\s+/);
-  const apiKey = apiKeyParts.join(" ").trim();
-  if (!rawBaseUrl || !apiKey) {
-    throw new Error("Укажите адрес API и ключ в одном поле через пробел");
-  }
-  return {
-    baseUrl: normalizeProviderBaseUrl(rawBaseUrl),
-    apiKey
-  };
-}
-
 export function AdminDashboardPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [routing, setRouting] = useState<LlmRoutingSettings | null>(null);
@@ -79,7 +77,6 @@ export function AdminDashboardPage() {
   const [providerBaseUrlDraft, setProviderBaseUrlDraft] = useState(OPENROUTER_BASE_URL);
   const [providerApiKeyDraft, setProviderApiKeyDraft] = useState("");
   const [customProvidersDraft, setCustomProvidersDraft] = useState<CustomProvider[]>([]);
-  const [providerEntryDraft, setProviderEntryDraft] = useState("");
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [roomPendingDelete, setRoomPendingDelete] = useState<Room | null>(null);
   const [deletingRoomId, setDeletingRoomId] = useState<number | null>(null);
@@ -173,39 +170,13 @@ export function AdminDashboardPage() {
   async function persistRoutingDraftIfNeeded(): Promise<LlmRoutingSettings | null> {
     const draft = routingDraft.trim();
     const current = routing?.vless_uri.trim() || "";
-    const normalizedProviders = normalizeCustomProviders(customProvidersDraft);
-    const currentProviders = normalizeCustomProviders(
-      (routing?.custom_providers ?? []).map((provider) => ({
-        baseUrl: provider.base_url,
-        apiKey: provider.api_key
-      }))
-    );
-    const nextProviderBaseUrl = normalizeProviderBaseUrl(providerBaseUrlDraft);
-    const hasRoutingChange =
-      draft !== current ||
-      nextProviderBaseUrl !== (routing?.provider_base_url ?? OPENROUTER_BASE_URL) ||
-      providerApiKeyDraft.trim() !== (routing?.provider_api_key ?? "") ||
-      JSON.stringify(normalizedProviders) !== JSON.stringify(currentProviders);
-    if (!draft || !hasRoutingChange) {
+    if (!draft || draft === current) {
       return null;
     }
 
-    const next = await updateLlmRoutingConfig({
-      vlessUri: draft,
-      providerBaseUrl: nextProviderBaseUrl,
-      providerApiKey: providerApiKeyDraft.trim(),
-      customProviders: normalizedProviders
-    });
+    const next = await updateLlmRoutingConfig({ vlessUri: draft });
     setRouting(next);
     setRoutingDraft(next.vless_uri);
-    setProviderBaseUrlDraft(next.provider_base_url);
-    setProviderApiKeyDraft(next.provider_api_key);
-    setCustomProvidersDraft(
-      next.custom_providers.map((provider) => ({
-        baseUrl: provider.base_url,
-        apiKey: provider.api_key
-      }))
-    );
     return next;
   }
 
@@ -260,17 +231,33 @@ export function AdminDashboardPage() {
     setProviderApiKeyDraft(getProviderApiKey(customProvidersDraft, nextBaseUrl));
   }
 
-  function onAddProvider(): void {
+  async function onSaveProvider(): Promise<void> {
+    setRoutingPending(true);
+    setError("");
     try {
-      const provider = parseProviderDraft(providerEntryDraft);
+      const provider = {
+        baseUrl: normalizeProviderBaseUrl(providerBaseUrlDraft),
+        apiKey: providerApiKeyDraft.trim()
+      };
       const nextProviders = normalizeCustomProviders([...customProvidersDraft, provider]);
-      setCustomProvidersDraft(nextProviders);
-      setProviderBaseUrlDraft(provider.baseUrl);
-      setProviderApiKeyDraft(provider.apiKey);
-      setProviderEntryDraft("");
-      setError("");
+      const next = await updateLlmProviderConfig({
+        providerBaseUrl: provider.baseUrl,
+        providerApiKey: provider.apiKey,
+        customProviders: nextProviders
+      });
+      setRouting(next);
+      setProviderBaseUrlDraft(next.provider_base_url);
+      setProviderApiKeyDraft(next.provider_api_key);
+      setCustomProvidersDraft(
+        next.custom_providers.map((savedProvider) => ({
+          baseUrl: savedProvider.base_url,
+          apiKey: savedProvider.api_key
+        }))
+      );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось добавить провайдера");
+      setError(cause instanceof Error ? cause.message : "Не удалось сохранить провайдера");
+    } finally {
+      setRoutingPending(false);
     }
   }
 
@@ -282,6 +269,45 @@ export function AdminDashboardPage() {
       {error ? <p role="alert">{error}</p> : null}
 
       <AdminRoomForm editingRoom={editingRoom} onCreate={onCreate} onUpdate={onUpdate} onCancelEdit={onCancelEdit} />
+
+      <section className="page-section panel" aria-label="llm provider">
+        <div className="section-header">
+          <div>
+            <h2>LLM Provider</h2>
+          </div>
+        </div>
+
+        <div className="routing-stack">
+          <label htmlFor="admin-llm-provider-select">Provider URL</label>
+          <select id="admin-llm-provider-select" value={providerBaseUrlDraft} onChange={(event) => onProviderSelectChange(event.target.value)}>
+            {providerOptions.map((providerBaseUrl) => (
+              <option key={providerBaseUrl} value={providerBaseUrl}>
+                {providerBaseUrl}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="admin-llm-provider-base-url">Base URL</label>
+          <input
+            id="admin-llm-provider-base-url"
+            value={providerBaseUrlDraft}
+            onChange={(event) => setProviderBaseUrlDraft(event.target.value)}
+            placeholder="https://openrouter.ai/"
+          />
+          <label htmlFor="admin-llm-provider-api-key">API key</label>
+          <input
+            id="admin-llm-provider-api-key"
+            type="password"
+            value={providerApiKeyDraft}
+            onChange={(event) => setProviderApiKeyDraft(event.target.value)}
+            placeholder="sk-or-v1-..."
+          />
+          <div className="action-row">
+            <button type="button" className="button-secondary" onClick={() => void onSaveProvider()} disabled={routingPending}>
+              Сохранить провайдера
+            </button>
+          </div>
+        </div>
+      </section>
 
       <section className="page-section panel" aria-label="llm routing">
         <div className="section-header">
@@ -299,30 +325,6 @@ export function AdminDashboardPage() {
             rows={4}
             placeholder="vless://..."
           />
-          <label htmlFor="admin-llm-routing-provider">Provider URL</label>
-          <select
-            id="admin-llm-routing-provider"
-            value={providerBaseUrlDraft}
-            onChange={(event) => onProviderSelectChange(event.target.value)}
-          >
-            {providerOptions.map((providerBaseUrl) => (
-              <option key={providerBaseUrl} value={providerBaseUrl}>
-                {providerBaseUrl}
-              </option>
-            ))}
-          </select>
-          <label htmlFor="admin-llm-routing-provider-entry">Адрес API и ключ</label>
-          <input
-            id="admin-llm-routing-provider-entry"
-            value={providerEntryDraft}
-            onChange={(event) => setProviderEntryDraft(event.target.value)}
-            placeholder="https://openrouter.ai/ sk-or-v1-..."
-          />
-          <div className="action-row">
-            <button type="button" className="button-secondary" onClick={onAddProvider} disabled={routingPending}>
-              Добавить ссылку
-            </button>
-          </div>
           <div className="detail-pills">
             <span className={`routing-status-chip${routing?.enabled ? " routing-status-chip--enabled" : " routing-status-chip--disabled"}`}>
               <span className="routing-status-chip__dot" aria-hidden="true" />

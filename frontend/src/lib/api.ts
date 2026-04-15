@@ -7,6 +7,7 @@ import type {
   PublicRoom,
   PromptCreate,
   LlmRoutingConfigPayload,
+  LlmProviderConfigPayload,
   RoomAccessToken,
   RoomCreatePayload,
   RoomPatchPayload,
@@ -129,6 +130,24 @@ export async function getRoomJobStatus(roomSlug: string, jobRef: string): Promis
   return (await byHashResponse.json()) as JobStatus;
 }
 
+export function connectRoomJobStatusSocket(roomSlug: string, jobRef: string): WebSocket {
+  const token = getRoomAccessToken(roomSlug);
+  if (!token) {
+    throw new Error("Room access token is missing");
+  }
+
+  const normalizedRef = normalizeResultHash(jobRef);
+  if (!normalizedRef) {
+    throw new Error("Invalid job reference");
+  }
+
+  const origin = API_BASE || window.location.origin;
+  const url = new URL(`${buildRoomApiPath(roomSlugOrDefault(roomSlug), `/jobs/hash/${encodeURIComponent(normalizedRef)}/ws`)}`, origin);
+  url.searchParams.set("room_access_token", token);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return new WebSocket(url.toString());
+}
+
 export async function listRoomGalleryResults(roomSlug: string): Promise<GalleryImage[]> {
   const response = await fetch(`${API_BASE}${buildRoomApiPath(roomSlugOrDefault(roomSlug), "/jobs/gallery")}`, {
     headers: requireRoomHeaders(roomSlug)
@@ -228,7 +247,20 @@ export async function updateLlmRoutingConfig(payload: LlmRoutingConfigPayload): 
     method: "PUT",
     headers: requireAdminHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
-      vless_uri: payload.vlessUri,
+      vless_uri: payload.vlessUri
+    })
+  });
+  if (!response.ok) {
+    throw new Error("Failed to update llm routing settings");
+  }
+  return (await response.json()) as LlmRoutingSettings;
+}
+
+export async function updateLlmProviderConfig(payload: LlmProviderConfigPayload): Promise<LlmRoutingSettings> {
+  const response = await fetch(`${API_BASE}/api/admin/llm-routing/provider`, {
+    method: "PUT",
+    headers: requireAdminHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
       provider_base_url: payload.providerBaseUrl,
       provider_api_key: payload.providerApiKey,
       custom_providers: payload.customProviders.map((provider) => ({
@@ -238,7 +270,7 @@ export async function updateLlmRoutingConfig(payload: LlmRoutingConfigPayload): 
     })
   });
   if (!response.ok) {
-    throw new Error("Failed to update llm routing settings");
+    throw new Error("Failed to update llm provider settings");
   }
   return (await response.json()) as LlmRoutingSettings;
 }

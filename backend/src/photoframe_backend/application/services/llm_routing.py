@@ -165,24 +165,33 @@ def _apply_and_probe(setting: LlmRoutingSetting) -> None:
 
 
 def save_vless_uri(
-    db: Session,
-    vless_uri: str,
-    *,
-    provider_base_url: str,
-    provider_api_key: str,
-    custom_providers: list[dict[str, str]] | list[object] | None,
+    db: Session, vless_uri: str
 ) -> LlmRoutingSetting:
     setting = get_or_create_llm_routing_setting(db)
     setting.vless_uri = vless_uri.strip()
-    setting.provider_base_url = normalize_provider_base_url(provider_base_url)
-    setting.provider_api_key = provider_api_key.strip()
-    setting.custom_providers_json = json.dumps(normalize_custom_providers(custom_providers))
     setting.status = STATUS_TESTING
     db.add(setting)
     db.commit()
     db.refresh(setting)
 
     _apply_and_probe(setting)
+    db.add(setting)
+    db.commit()
+    db.refresh(setting)
+    return setting
+
+
+def save_provider_config(
+    db: Session,
+    *,
+    provider_base_url: str,
+    provider_api_key: str,
+    custom_providers: list[dict[str, str]] | list[object] | None,
+) -> LlmRoutingSetting:
+    setting = get_or_create_llm_routing_setting(db)
+    setting.provider_base_url = normalize_provider_base_url(provider_base_url)
+    setting.provider_api_key = provider_api_key.strip()
+    setting.custom_providers_json = json.dumps(normalize_custom_providers(custom_providers))
     db.add(setting)
     db.commit()
     db.refresh(setting)

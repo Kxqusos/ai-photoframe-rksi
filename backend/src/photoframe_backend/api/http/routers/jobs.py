@@ -1,11 +1,13 @@
 import logging
 import time
+import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketException, status
 from fastapi.responses import FileResponse, Response
 
 from photoframe_backend.api.http.dependencies import DbSession, PublicIdPath, require_room_access
+from photoframe_backend.api.http.security import validate_room_access_token
 from photoframe_backend.api.http.schemas.public import GalleryImageOut, JobCreated, JobStatusOut
 from photoframe_backend.application.services.job_runtime import (
     create_processing_job,
@@ -24,9 +26,11 @@ from photoframe_backend.shared.qr import build_qr_png
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 room_router = APIRouter(prefix="/api/rooms/{room_slug}/jobs", tags=["jobs"], dependencies=[Depends(require_room_access)])
+websocket_room_router = APIRouter(prefix="/api/rooms/{room_slug}/jobs", tags=["jobs"])
 public_router = APIRouter(prefix="/qr", tags=["qr"])
 logger = logging.getLogger(__name__)
 _GENERATION_RETRY_DELAY_SECONDS = 3.0
+_JOB_STATUS_WS_POLL_SECONDS = 1.0
 _NON_RETRYABLE_GENERATION_ERRORS = {
     "prompt not found",
     "room not found",
@@ -175,6 +179,43 @@ def get_job_status_by_hash_for_room(
     return _to_job_status(job, room_slug=room.slug)
 
 
+@websocket_room_router.websocket("/hash/{jpg_hash}/ws")
+async def stream_job_status_by_hash_for_room(
+    websocket: WebSocket,
+    room_slug: PublicIdPath,
+    jpg_hash: PublicIdPath,
+    room_access_token: str = Query(...),
+) -> None:
+    try:
+        validate_room_access_token(room_slug, room_access_token)
+    except Exception as exc:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION) from exc
+
+    await websocket.accept()
+    last_payload: dict | None = None
+
+    try:
+        while True:
+            with SessionLocal() as db:
+                room = _resolve_room_or_404(db, room_slug)
+                job = get_job_by_qr_hash(db, jpg_hash)
+                if job is None or job.room_id != room.id:
+                    await websocket.send_json({"status": "error", "error_message": "job not found"})
+                    return
+                payload = _to_job_status(job, room_slug=room.slug).model_dump()
+
+            if payload != last_payload:
+                await websocket.send_json(payload)
+                last_payload = payload
+
+            if payload["status"] in {"completed", "error"}:
+                return
+
+            await asyncio.sleep(_JOB_STATUS_WS_POLL_SECONDS)
+    finally:
+        await websocket.close()
+
+
 @router.get("/{job_id}", response_model=JobStatusOut)
 def get_job_status(job_id: int, db: DbSession) -> JobStatusOut:
     default_room = get_or_create_default_room(db)
@@ -261,4 +302,4 @@ def download_result_by_qr_hash(qr_hash: str, db: DbSession) -> FileResponse:
     return FileResponse(result_path, filename=f"photoframe-{job.qr_hash}{suffix}")
 
 
-__all__ = ["build_qr_png", "public_router", "room_router", "router"]
+__all__ = ["build_qr_png", "public_router", "room_router", "router", "websocket_room_router"]

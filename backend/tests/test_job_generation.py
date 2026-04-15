@@ -190,6 +190,76 @@ def test_create_job_uses_saved_model_setting(monkeypatch) -> None:
     assert captured["model"] == "openai/gpt-5-image"
 
 
+def test_create_job_uses_provider_settings_from_site_even_when_vless_routing_is_disabled(monkeypatch) -> None:
+    _reset_db()
+    captured: dict[str, str | bool | None] = {}
+
+    def fake_generate_image(
+        *,
+        model: str,
+        prompt: str,
+        image_bytes: bytes,
+        route_via_proxy: bool = False,
+        provider_base_url: str | None = None,
+        provider_api_key: str | None = None,
+    ) -> bytes:
+        captured["model"] = model
+        captured["route_via_proxy"] = route_via_proxy
+        captured["provider_base_url"] = provider_base_url
+        captured["provider_api_key"] = provider_api_key
+        return b"generated-image-bytes"
+
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.image_generation.generate_image", fake_generate_image)
+
+    client = TestClient(app)
+    prompt_id = _create_prompt(client)
+
+    provider_saved = client.put(
+        "/api/admin/llm-routing/provider",
+        json={
+            "provider_base_url": "https://embedded.pups-labs.ru/",
+            "provider_api_key": "sk-test-key",
+            "custom_providers": [{"base_url": "https://embedded.pups-labs.ru/", "api_key": "sk-test-key"}],
+        },
+    )
+    assert provider_saved.status_code == 401
+
+    from photoframe_backend.api.http.security import settings as auth_settings
+
+    auth_settings.auth.admin_username = "admin"
+    auth_settings.auth.admin_password = "super-secret-password"
+    auth_settings.auth.jwt_secret = "test-jwt-secret-with-at-least-32-bytes"
+    auth_settings.auth.jwt_expire_minutes = 60
+    login = client.post("/api/admin/auth/login", json={"username": "admin", "password": "super-secret-password"})
+    token = login.json()["access_token"]
+    provider_saved = client.put(
+        "/api/admin/llm-routing/provider",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "provider_base_url": "https://embedded.pups-labs.ru/",
+            "provider_api_key": "sk-test-key",
+            "custom_providers": [{"base_url": "https://embedded.pups-labs.ru/", "api_key": "sk-test-key"}],
+        },
+    )
+    assert provider_saved.status_code == 200
+
+    created = client.post(
+        "/api/jobs",
+        files={"photo": ("photo.jpg", b"source-image", "image/jpeg")},
+        data={"prompt_id": str(prompt_id)},
+    )
+    assert created.status_code == 202
+
+    for _ in range(30):
+        if "provider_base_url" in captured:
+            break
+        time.sleep(0.02)
+
+    assert captured["route_via_proxy"] is False
+    assert captured["provider_base_url"] == "https://embedded.pups-labs.ru/v1"
+    assert captured["provider_api_key"] == "sk-test-key"
+
+
 def test_create_job_retries_generation_until_success(monkeypatch) -> None:
     _reset_db()
     attempts = {"count": 0}
