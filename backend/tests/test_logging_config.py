@@ -46,3 +46,35 @@ def test_configure_logging_writes_logs_to_file(monkeypatch, tmp_path: Path) -> N
             root_logger.removeHandler(handler)
             handler.close()
         root_logger.setLevel(original_level)
+
+
+def test_configure_logging_enables_verbose_dev_loggers(monkeypatch, tmp_path: Path) -> None:
+    log_path = tmp_path / "backend.log"
+    monkeypatch.setenv("LOG__FILE_PATH", str(log_path))
+    monkeypatch.setenv("LOG__LEVEL", "DEBUG")
+    monkeypatch.setenv("LOG__DEV_VERBOSE", "true")
+
+    root_logger = logging.getLogger()
+    original_handlers = list(root_logger.handlers)
+    original_level = root_logger.level
+    tracked_loggers = {
+        name: logging.getLogger(name).level
+        for name in ["sqlalchemy.engine", "sqlalchemy.pool", "uvicorn.error", "uvicorn.access"]
+    }
+
+    try:
+        configure_logging()
+
+        assert logging.getLogger("sqlalchemy.engine").level == logging.INFO
+        assert logging.getLogger("sqlalchemy.pool").level == logging.DEBUG
+        assert logging.getLogger("uvicorn.error").level == logging.DEBUG
+        assert logging.getLogger("uvicorn.access").level == logging.DEBUG
+    finally:
+        for handler in list(root_logger.handlers):
+            if handler in original_handlers:
+                continue
+            root_logger.removeHandler(handler)
+            handler.close()
+        root_logger.setLevel(original_level)
+        for name, level in tracked_loggers.items():
+            logging.getLogger(name).setLevel(level)

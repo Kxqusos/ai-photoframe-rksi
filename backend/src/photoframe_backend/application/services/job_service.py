@@ -82,6 +82,15 @@ class JobService:
             return self._job_repository.save(job)
 
         source_path = job.source_path
+        room_slug = room.slug
+        room_model_name = room.model_name
+        prompt_text = prompt.prompt
+        qr_hash = job.qr_hash
+        release_connection = getattr(self._job_repository, "release_connection", None)
+        if callable(release_connection):
+            release_connection()
+
+        persisted_job = job
         try:
             source_bytes = Path(source_path).read_bytes() if source_path else b""
             if self._generate_image is None:
@@ -89,17 +98,18 @@ class JobService:
             if self._build_room_result_dir is None or self._build_filename is None or self._resolve_result_suffix is None:
                 raise RuntimeError("storage dependencies are not configured")
 
-            generated = self._generate_image(model=room.model_name, prompt=prompt.prompt, image_bytes=source_bytes)
-            result_dir = self._build_room_result_dir(room.slug)
+            generated = self._generate_image(model=room_model_name, prompt=prompt_text, image_bytes=source_bytes)
+            result_dir = self._build_room_result_dir(room_slug)
             result_path = result_dir / self._build_filename(job.id, self._resolve_result_suffix())
             result_path.write_bytes(generated)
             self._prune_result_files()
 
-            job.result_path = str(result_path)
-            if not job.qr_hash:
-                job.qr_hash = self._generate_qr_hash()
-            job.status = "completed"
-            job.error_message = None
+            persisted_job = self._job_repository.get_by_id(job_id) or job
+            persisted_job.result_path = str(result_path)
+            if not persisted_job.qr_hash:
+                persisted_job.qr_hash = qr_hash or self._generate_qr_hash()
+            persisted_job.status = "completed"
+            persisted_job.error_message = None
         except Exception as exc:
             logger.exception(
                 "Generation job failed",
@@ -107,13 +117,14 @@ class JobService:
                     "job_id": job.id,
                     "room_id": job.room_id,
                     "prompt_id": job.prompt_id,
-                    "room_model_name": room.model_name,
+                    "room_model_name": room_model_name,
                 },
             )
-            job.status = "error"
-            job.error_message = str(exc)
+            persisted_job = self._job_repository.get_by_id(job_id) or job
+            persisted_job.status = "error"
+            persisted_job.error_message = str(exc)
         finally:
             self._cleanup_source_file(source_path)
-            job.source_path = None
+            persisted_job.source_path = None
 
-        return self._job_repository.save(job)
+        return self._job_repository.save(persisted_job)

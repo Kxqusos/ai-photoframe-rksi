@@ -36,7 +36,19 @@ def _resolve_database_url(raw_url: str | None) -> str:
 def build_engine(database_url: str | None = None):
     resolved_url = _resolve_database_url(database_url or os.getenv("DATABASE_URL"))
     connect_args = {"check_same_thread": False} if resolved_url.startswith("sqlite") else {}
-    return create_engine(resolved_url, connect_args=connect_args)
+    if resolved_url.startswith("sqlite"):
+        return create_engine(resolved_url, connect_args=connect_args)
+
+    settings = load_settings(allow_test_defaults=True)
+    return create_engine(
+        resolved_url,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+        pool_size=settings.db.pool_size,
+        max_overflow=settings.db.max_overflow,
+        pool_timeout=settings.db.pool_timeout,
+        pool_recycle=settings.db.pool_recycle,
+    )
 
 
 def build_session_local(bind):

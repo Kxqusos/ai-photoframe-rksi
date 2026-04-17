@@ -25,6 +25,17 @@ def _resolve_log_level() -> int:
     return parsed_level if isinstance(parsed_level, int) else logging.INFO
 
 
+def _configure_verbose_dev_loggers() -> None:
+    settings = _current_settings()
+    if not settings.log.dev_verbose:
+        return
+
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.DEBUG)
+    logging.getLogger("uvicorn.error").setLevel(logging.DEBUG)
+    logging.getLogger("uvicorn.access").setLevel(logging.DEBUG)
+
+
 def configure_logging() -> Path:
     log_file_path = _resolve_log_file_path()
     log_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,6 +58,7 @@ def configure_logging() -> Path:
     level = _resolve_log_level()
     if root_logger.level == logging.NOTSET or root_logger.level > level:
         root_logger.setLevel(level)
+    _configure_verbose_dev_loggers()
 
     return target
 

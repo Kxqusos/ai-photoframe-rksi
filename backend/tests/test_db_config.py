@@ -90,3 +90,29 @@ def test_main_import_does_not_let_legacy_env_file_override_grouped_database_sett
     assert session_module.DATABASE_URL == (
         "postgresql+psycopg://runtime_user:runtime_pass@postgres.internal:5433/photoframe_runtime"
     )
+
+
+def test_build_engine_configures_pool_health_checks_for_postgres(monkeypatch) -> None:
+    import photoframe_backend.infrastructure.db.session as session_module
+
+    captured: dict[str, object] = {}
+
+    def fake_create_engine(url: str, **kwargs):
+        captured["url"] = url
+        captured["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr(session_module, "create_engine", fake_create_engine)
+
+    engine = session_module.build_engine("postgresql+psycopg://user:pass@db.internal:5432/app")
+
+    assert engine is not None
+    assert captured["url"] == "postgresql+psycopg://user:pass@db.internal:5432/app"
+    assert captured["kwargs"] == {
+        "connect_args": {},
+        "pool_pre_ping": True,
+        "pool_size": 20,
+        "max_overflow": 20,
+        "pool_timeout": 30,
+        "pool_recycle": 1800,
+    }

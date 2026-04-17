@@ -24,6 +24,7 @@ def clear_settings_env(monkeypatch) -> None:
         "DB__ECHO",
         "LOG__FILE_PATH",
         "LOG__LEVEL",
+        "LOG__DEV_VERBOSE",
         "OPENROUTER__HTTP_REFERER",
         "OPENROUTER__X_TITLE",
         "OPENROUTER__PROVIDER_SORT",
@@ -72,6 +73,7 @@ def test_load_settings_reads_grouped_values_from_env_file(tmp_path: Path, monkey
                 "DB__HOST=postgres.internal",
                 "DB__PORT=5433",
                 "DB__NAME=photoframe_dev",
+                "LOG__DEV_VERBOSE=true",
                 "STORAGE__RESULT_RETENTION_DAYS=14",
             ]
         )
@@ -88,6 +90,7 @@ def test_load_settings_reads_grouped_values_from_env_file(tmp_path: Path, monkey
         "DB__HOST",
         "DB__PORT",
         "DB__NAME",
+        "LOG__DEV_VERBOSE",
         "STORAGE__RESULT_RETENTION_DAYS",
     ]:
         monkeypatch.delenv(key, raising=False)
@@ -101,6 +104,7 @@ def test_load_settings_reads_grouped_values_from_env_file(tmp_path: Path, monkey
     assert settings.db.host == "postgres.internal"
     assert settings.db.port == 5433
     assert settings.db.name == "photoframe_dev"
+    assert settings.log.dev_verbose is True
     assert settings.storage.result_retention_days == 14
 
 

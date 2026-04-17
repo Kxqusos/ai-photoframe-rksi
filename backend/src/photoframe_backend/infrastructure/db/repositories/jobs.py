@@ -33,6 +33,9 @@ class SqlAlchemyJobRepository:
     def get_completed_by_qr_hash(self, qr_hash: str) -> GenerationJob | None:
         return self._db.query(GenerationJob).filter(GenerationJob.qr_hash == qr_hash, GenerationJob.status == "completed").first()
 
+    def release_connection(self) -> None:
+        self._db.rollback()
+
     def save(self, job: GenerationJob) -> GenerationJob:
         self._db.add(job)
         self._db.commit()

@@ -10,8 +10,12 @@ from photoframe_backend.shared.constants import (
     DEFAULT_APP_ENV,
     DEFAULT_APP_NAME,
     DEFAULT_DB_HOST,
+    DEFAULT_DB_MAX_OVERFLOW,
     DEFAULT_DB_NAME,
     DEFAULT_DB_PASSWORD,
+    DEFAULT_DB_POOL_RECYCLE,
+    DEFAULT_DB_POOL_SIZE,
+    DEFAULT_DB_POOL_TIMEOUT,
     DEFAULT_DB_PORT,
     DEFAULT_DB_USER,
     DEFAULT_JWT_EXPIRE_MINUTES,
@@ -53,6 +57,10 @@ class DatabaseSettings(BaseModel):
     user: str = DEFAULT_DB_USER
     password: str = DEFAULT_DB_PASSWORD
     echo: bool = False
+    pool_size: int = DEFAULT_DB_POOL_SIZE
+    max_overflow: int = DEFAULT_DB_MAX_OVERFLOW
+    pool_timeout: int = DEFAULT_DB_POOL_TIMEOUT
+    pool_recycle: int = DEFAULT_DB_POOL_RECYCLE
 
     @property
     def database_url(self) -> str:
@@ -62,6 +70,7 @@ class DatabaseSettings(BaseModel):
 class LogSettings(BaseModel):
     level: str = DEFAULT_LOG_LEVEL
     file_path: str = str(DEFAULT_LOG_FILE_PATH.relative_to(BACKEND_DIR))
+    dev_verbose: bool = False
 
 
 class OpenRouterSettings(BaseModel):

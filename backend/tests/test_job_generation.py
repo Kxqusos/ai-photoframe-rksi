@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from fastapi.staticfiles import StaticFiles
 
+import photoframe_backend.application.services.job_runtime as job_runtime
 from photoframe_backend.infrastructure.db.base import Base
 from photoframe_backend.infrastructure.db.session import SessionLocal, engine
 from photoframe_backend.application.services.job_runtime import DEFAULT_MODEL_NAME, LEGACY_MODEL_NAME, LEGACY_OPENAI_MODEL_NAME
@@ -188,6 +189,46 @@ def test_create_job_uses_saved_model_setting(monkeypatch) -> None:
             break
         time.sleep(0.02)
     assert captured["model"] == "openai/gpt-5-image"
+
+
+def test_run_generation_sync_releases_db_transaction_before_external_generate_call(monkeypatch, tmp_path: Path) -> None:
+    _reset_db()
+    source_dir, result_dir = _patch_storage_dirs(monkeypatch, tmp_path)
+    captured: dict[str, bool] = {}
+
+    def fake_generate_image(*, model: str, prompt: str, image_bytes: bytes, **kwargs) -> bytes:
+        captured["in_transaction"] = db.in_transaction()
+        return b"generated-image-bytes"
+
+    monkeypatch.setattr("photoframe_backend.infrastructure.clients.image_generation.generate_image", fake_generate_image)
+
+    client = TestClient(app)
+    prompt_id = _create_prompt(client)
+
+    with SessionLocal() as db:
+        room = db.query(Room).filter(Room.slug == "ph000000").first()
+        assert room is not None
+
+        source_path = source_dir / "job-source.jpg"
+        source_path.write_bytes(b"source-image")
+
+        job = GenerationJob(
+            prompt_id=prompt_id,
+            room_id=room.id,
+            status="processing",
+            qr_hash="rung0001",
+            source_path=str(source_path),
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+
+        result = job_runtime.run_generation_sync(db, job.id)
+
+        assert result.status == "completed"
+        assert captured["in_transaction"] is False
+        assert result.result_path is not None
+        assert Path(result.result_path).parent == result_dir / "room-ph000000"
 
 
 def test_create_job_uses_provider_settings_from_site_even_when_vless_routing_is_disabled(monkeypatch) -> None:
